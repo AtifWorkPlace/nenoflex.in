@@ -12,18 +12,16 @@ import {
   Tag,
   Lock,
   LogOut,
-  MoveUp,
-  MoveDown,
   FileText,
   Volume2,
   Eye,
   Check,
   Layers,
   Upload,
-  Link as LinkIcon
+  Type
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
-import { Product, ProductCondition } from '@/types';
+import { Product } from '@/types';
 import { NotificationSoundType } from '@/lib/audio';
 
 export default function EnterpriseAdminDashboard() {
@@ -37,7 +35,6 @@ export default function EnterpriseAdminDashboard() {
     auditLogs,
     adminLogout,
     updateSiteSettings,
-    reorderCollectionBoxes,
     addCoupon,
     deleteCoupon,
     playAdminChime,
@@ -45,6 +42,7 @@ export default function EnterpriseAdminDashboard() {
     deleteCategory,
     addBrand,
     deleteBrand,
+    uploadCustomFont,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -52,7 +50,7 @@ export default function EnterpriseAdminDashboard() {
     showToast
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'banner' | 'promo' | 'sound' | 'catalog' | 'products' | 'coupons' | 'orders' | 'audit'>('products');
+  const [activeTab, setActiveTab] = useState<'banner' | 'font' | 'promo' | 'sound' | 'catalog' | 'products' | 'coupons' | 'orders' | 'audit'>('products');
 
   // Site Settings Form
   const [bannerText, setBannerText] = useState(siteSettings.announcementBanner);
@@ -61,6 +59,10 @@ export default function EnterpriseAdminDashboard() {
   const [heroCtaText, setHeroCtaText] = useState(siteSettings.heroCtaText || 'Shop now');
   const [heroSecondaryCtaText, setHeroSecondaryCtaText] = useState(siteSettings.heroSecondaryCtaText || 'Explore Vault');
   const [heroTickerText, setHeroTickerText] = useState(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
+
+  // Typography & Device Font Customizer
+  const [fontFamilyName, setFontFamilyName] = useState(siteSettings.customFontFamily || 'Inter');
+  const [fontFileName, setFontFileName] = useState('');
 
   // Promo Pop-Up Banner Form
   const [promoEnabled, setPromoEnabled] = useState(siteSettings.promoModal?.enabled ?? true);
@@ -150,24 +152,16 @@ export default function EnterpriseAdminDashboard() {
     );
   }
 
-  // Device File Upload Handler
-  const handleDeviceImageUpload = (file: File, target: 'primary' | 'hover') => {
+  // Device Font Upload Handler (.ttf, .otf, .woff, .woff2)
+  const handleDeviceFontFileUpload = (file: File) => {
     if (!file) return;
+    const cleanFontName = file.name.split('.')[0].replace(/[^a-zA-Z0-9]/g, '');
+    setFontFileName(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (editingProduct) {
-        setEditingProduct({
-          ...editingProduct,
-          [target === 'primary' ? 'image' : 'imageHover']: dataUrl
-        });
-      } else {
-        setNewProd({
-          ...newProd,
-          [target === 'primary' ? 'image' : 'imageHover']: dataUrl
-        });
-      }
-      showToast(`Uploaded ${target === 'primary' ? 'Primary' : 'Hover 2nd'} image from device!`);
+      const fontDataUrl = e.target?.result as string;
+      uploadCustomFont(cleanFontName, fontDataUrl);
+      setFontFamilyName(cleanFontName);
     };
     reader.readAsDataURL(file);
   };
@@ -188,6 +182,7 @@ export default function EnterpriseAdminDashboard() {
       footerInstagram,
       footerInstagramUrl,
       footerCopyright,
+      customFontFamily: fontFamilyName,
     });
   };
 
@@ -255,7 +250,7 @@ export default function EnterpriseAdminDashboard() {
           <h1 className="luxury-heading text-3xl font-bold text-white mt-1">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">WhatsApp & Instagram Link Redirect Control, Moving Ticker, Nodemailer Alert Engine.</p>
+          <p className="text-xs text-neutral-400">Order Storage Persistence, Device Font Uploader & Nodemailer Alerting.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -280,12 +275,13 @@ export default function EnterpriseAdminDashboard() {
         {[
           { id: 'products', label: `1. Products (${products.length})`, icon: Package },
           { id: 'catalog', label: '2. Catalog Categories & Brands', icon: Layers },
-          { id: 'promo', label: '3. Promo Pop-up Banner', icon: Eye },
-          { id: 'sound', label: '4. Order Sound Chime', icon: Volume2 },
-          { id: 'banner', label: '5. Site Banner & Social Redirects', icon: Settings },
-          { id: 'coupons', label: `6. Coupons (${coupons.length})`, icon: Tag },
-          { id: 'orders', label: `7. Orders (${orders.length})`, icon: TrendingUp },
-          { id: 'audit', label: `8. Audit Logs (${auditLogs.length})`, icon: FileText },
+          { id: 'font', label: '3. Device Font Customizer', icon: Type },
+          { id: 'promo', label: '4. Promo Pop-up Banner', icon: Eye },
+          { id: 'sound', label: '5. Order Sound Chime', icon: Volume2 },
+          { id: 'banner', label: '6. Site Banner & Social Redirects', icon: Settings },
+          { id: 'coupons', label: `7. Coupons (${coupons.length})`, icon: Tag },
+          { id: 'orders', label: `8. Orders (${orders.length})`, icon: TrendingUp },
+          { id: 'audit', label: `9. Audit Logs (${auditLogs.length})`, icon: FileText },
         ].map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -372,100 +368,70 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 2: CUSTOMIZABLE CATALOG CATEGORIES & BRANDS */}
-      {activeTab === 'catalog' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Category Customizer */}
-          <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-            <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Catalog Categories</h3>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
-                placeholder="New Category Name (e.g. Vintage Denim)"
-                className="flex-1 px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
-              />
-              <button
-                onClick={() => {
-                  if (newCatName) {
-                    addCategory(newCatName);
-                    setNewCatName('');
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold uppercase"
-              >
-                Add Category
-              </button>
-            </div>
-
-            <div className="space-y-1.5 text-xs text-neutral-400 font-mono">
-              {siteSettings.customCategories.map(cat => (
-                <div key={cat} className="flex justify-between items-center p-2.5 rounded-xl bg-neutral-900">
-                  <span className="text-white font-bold">{cat}</span>
-                  <button
-                    onClick={() => deleteCategory(cat)}
-                    className="p-1 text-neutral-500 hover:text-rose-400"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
+      {/* TAB 3: TYPOGRAPHY & LOCAL DEVICE FONT FILE UPLOADER */}
+      {activeTab === 'font' && (
+        <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
+          <div>
+            <h2 className="text-xl font-bold text-white font-mono uppercase">Site-Wide Typography & Font Uploader Engine</h2>
+            <p className="text-xs text-neutral-400 mt-1">Upload font files (.ttf, .otf, .woff, .woff2) directly from your device or select font presets to update the whole website font live.</p>
           </div>
 
-          {/* Brand Customizer */}
-          <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-            <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Luxury & Streetwear Brands</h3>
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={newBrandName}
-                onChange={e => setNewBrandName(e.target.value)}
-                placeholder="Brand Name (e.g. Stüssy)"
-                className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newBrandLogo}
-                  onChange={e => setNewBrandLogo(e.target.value)}
-                  placeholder="Logo Emoji"
-                  className="w-24 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
-                />
-                <input
-                  type="text"
-                  value={newBrandOrigin}
-                  onChange={e => setNewBrandOrigin(e.target.value)}
-                  placeholder="Origin Country (e.g. USA)"
-                  className="flex-1 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
-                />
-                <button
-                  onClick={() => {
-                    if (newBrandName) {
-                      addBrand({ name: newBrandName, logo: newBrandLogo, origin: newBrandOrigin });
-                      setNewBrandName('');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold uppercase"
-                >
-                  Add Brand
-                </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Font Presets */}
+            <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4 text-xs font-mono">
+              <h3 className="font-bold text-sm text-amber-400 uppercase">1. Select Typography Preset</h3>
+              <div className="space-y-2">
+                {[
+                  { id: 'Inter', name: 'Inter (Default Modern Minimalist)' },
+                  { id: 'Outfit', name: 'Outfit (Luxury Streetwear Sans)' },
+                  { id: 'Playfair Display', name: 'Playfair Display (Serif Elegance)' },
+                  { id: 'Bebas Neue', name: 'Bebas Neue (Bold Streetwear Header)' },
+                  { id: 'Courier New', name: 'Courier New (Tech Monospace Vault)' },
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setFontFamilyName(f.id);
+                      updateSiteSettings({ ...siteSettings, customFontFamily: f.id, customFontDataUrl: undefined });
+                      showToast(`Applied "${f.name}" site-wide!`);
+                    }}
+                    className={`w-full p-3 rounded-xl text-left border flex items-center justify-between transition-all ${
+                      siteSettings.customFontFamily === f.id
+                        ? 'bg-amber-950/40 border-amber-500 text-amber-300 font-bold'
+                        : 'bg-black border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                    }`}
+                  >
+                    <span>{f.name}</span>
+                    {siteSettings.customFontFamily === f.id && <Check className="w-4 h-4 text-amber-400" />}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="space-y-1.5 text-xs text-neutral-400 font-mono">
-              {siteSettings.customBrands.map(b => (
-                <div key={b.name} className="flex justify-between items-center p-2.5 rounded-xl bg-neutral-900">
-                  <span className="text-white font-bold">{b.logo} {b.name} ({b.origin})</span>
-                  <button
-                    onClick={() => deleteBrand(b.name)}
-                    className="p-1 text-neutral-500 hover:text-rose-400"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+            {/* Direct Device Font File Picker */}
+            <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4 text-xs font-mono">
+              <h3 className="font-bold text-sm text-emerald-400 uppercase">2. Upload Font File From Device 📁</h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Upload custom font files (<strong className="text-white">.ttf, .otf, .woff, .woff2</strong>) from your computer, iPhone, or Android device.
+              </p>
+
+              <div className="p-4 rounded-xl bg-black border border-neutral-800 text-center space-y-3">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 transition-all shadow-lg">
+                  <Upload className="w-4 h-4" /> Select Font File from Device
+                  <input
+                    type="file"
+                    accept=".ttf,.otf,.woff,.woff2"
+                    className="hidden"
+                    onChange={e => e.target.files?.[0] && handleDeviceFontFileUpload(e.target.files[0])}
+                  />
+                </label>
+
+                {fontFileName && (
+                  <p className="text-xs text-emerald-400 font-bold pt-1">
+                    Uploaded: {fontFileName} (Applied Live ✓)
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -565,11 +531,11 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 7: FULFILLMENT & ORDERS LOG WITH NODEMAILER ALERT RE-DISPATCH */}
+      {/* TAB 8: FULFILLMENT & ORDERS LOG WITH NODEMAILER ALERT RE-DISPATCH */}
       {activeTab === 'orders' && (
         <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white font-mono uppercase">Fulfillment & Live Orders Log</h2>
+            <h2 className="text-xl font-bold text-white font-mono uppercase">Fulfillment & Live Orders Log ({orders.length})</h2>
             <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
               EMAIL NOTIFICATION: flexnagaon@gmail.com
             </span>
@@ -600,83 +566,6 @@ export default function EnterpriseAdminDashboard() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* CREATE / EDIT PRODUCT MODAL WITH DEVICE FILE PICKER */}
-      {(showAddModal || editingProduct) && (
-        <div className="fixed inset-0 z-50 p-4 flex items-center justify-center bg-black/90 backdrop-blur-md">
-          <div className="w-full max-w-2xl bg-neutral-900 border border-neutral-700 rounded-3xl p-6 sm:p-8 space-y-4 text-white overflow-y-auto max-h-[90vh] shadow-2xl font-sans">
-            <h3 className="font-bold text-lg font-mono uppercase">
-              {editingProduct ? `Edit SKU ${editingProduct.sku}` : 'Add New Vault Product (Shopify Spec)'}
-            </h3>
-            <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono">SKU Number</label>
-                  <input
-                    type="text"
-                    value={editingProduct ? editingProduct.sku : newProd.sku}
-                    onChange={e =>
-                      editingProduct
-                        ? setEditingProduct({ ...editingProduct, sku: e.target.value })
-                        : setNewProd({ ...newProd, sku: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono">Barcode / EAN</label>
-                  <input
-                    type="text"
-                    value={editingProduct ? editingProduct.barcode : newProd.barcode}
-                    onChange={e =>
-                      editingProduct
-                        ? setEditingProduct({ ...editingProduct, barcode: e.target.value })
-                        : setNewProd({ ...newProd, barcode: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-neutral-400 mb-1 font-mono">Product Title</label>
-                <input
-                  type="text"
-                  value={editingProduct ? editingProduct.name : newProd.name}
-                  onChange={e =>
-                    editingProduct
-                      ? setEditingProduct({ ...editingProduct, name: e.target.value })
-                      : setNewProd({ ...newProd, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setEditingProduct(null);
-                  }}
-                  className="px-4 py-2 rounded-full bg-neutral-800 text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-full bg-white text-black font-bold uppercase"
-                >
-                  Save Product
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

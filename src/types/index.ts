@@ -139,17 +139,19 @@ export interface SiteSettings {
   heroSubtitle: string;
   heroCtaText: string;
   heroSecondaryCtaText: string;
-  heroTickerText: string; // e.g. 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||'
+  heroTickerText: string;
   footerTagline: string;
   footerPhone: string;
-  footerWhatsappUrl: string; // Redirect link for WhatsApp
+  footerWhatsappUrl: string;
   footerInstagram: string;
-  footerInstagramUrl: string; // Redirect link for Instagram
-  footerCopyright: string; // Default: '© 2022 NenoFlex Official. All rights reserved.'
+  footerInstagramUrl: string;
+  footerCopyright: string;
   collectionBoxOrder: string[];
   notificationSound: 'cash-register' | 'luxury-bell' | 'ping' | 'alert';
   customCategories: string[];
   customBrands: Array<{ name: string; logo: string; origin: string }>;
+  customFontFamily: string; // Font family name e.g. 'Inter' or 'CustomUploadedFont'
+  customFontDataUrl?: string; // Base64 Data URL for uploaded font file
   promoModal: {
     enabled: boolean;
     title: string;

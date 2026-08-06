@@ -1,10 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product, CartItem, Order, FilterState, Coupon, SiteSettings, UserRole } from '@/types';
 import { INITIAL_PRODUCTS, BRANDS_LIST } from '@/data/products';
 import { SecuritySuite, AuditLog } from '@/lib/security';
 import { AudioNotificationEngine, NotificationSoundType } from '@/lib/audio';
+import { SupabaseService } from '@/lib/supabase';
 
 interface StoreContextType {
   products: Product[];
@@ -38,6 +39,7 @@ interface StoreContextType {
   deleteCategory: (name: string) => void;
   addBrand: (brand: { name: string; logo: string; origin: string }) => void;
   deleteBrand: (name: string) => void;
+  uploadCustomFont: (fontName: string, fontDataUrl: string) => void;
 
   // Cart & Shopping Actions
   toggleWishlist: (productId: string) => void;
@@ -79,10 +81,36 @@ const initialFilters: FilterState = {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+const DEFAULT_ORDERS: Order[] = [
+  {
+    id: 'U0YJEFD9P',
+    items: [{ product: INITIAL_PRODUCTS[0], selectedSize: 'L', quantity: 1 }],
+    subtotal: 649,
+    discount: 0,
+    shippingFee: 80,
+    total: 729,
+    status: 'Placed',
+    trackingCode: 'NF-6000149918',
+    courier: 'BlueDart Express Air',
+    shippingAddress: {
+      fullName: 'Atif',
+      email: 'flexnagaon@gmail.com',
+      phone: '+91 60001 49919',
+      address: 'Guwahati AS',
+      city: 'Guwahati',
+      state: 'Assam',
+      pincode: '781001',
+    },
+    paymentMethod: 'QR Pre-Paid',
+    createdAt: new Date().toISOString(),
+    estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  }
+];
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [wishlist, setWishlist] = useState<string[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]); // Fresh empty cart for new customer visits!
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
@@ -108,6 +136,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     notificationSound: 'cash-register',
     customCategories: ['Jerseys', 'Jackets', 'Sweatshirts', 'Hoodies', 'Windbreakers', 'Graphic Tees', 'Oversized T-Shirts', 'Cargo Pants', 'Jeans', 'Caps'],
     customBrands: BRANDS_LIST,
+    customFontFamily: 'Inter',
     promoModal: {
       enabled: true,
       title: 'SUMMER DROP 2026',
@@ -124,32 +153,58 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ]);
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: 'U0YJEFD9P',
-      items: [{ product: INITIAL_PRODUCTS[0], selectedSize: 'L', quantity: 1 }],
-      subtotal: 649,
-      discount: 0,
-      shippingFee: 80,
-      total: 729,
-      status: 'Placed',
-      trackingCode: 'NF-6000149918',
-      courier: 'BlueDart Express Air',
-      shippingAddress: {
-        fullName: 'Atif',
-        email: 'flexnagaon@gmail.com',
-        phone: '+91 60001 49919',
-        address: 'Guwahati AS',
-        city: 'Guwahati',
-        state: 'Assam',
-        pincode: '781001',
-      },
-      paymentMethod: 'QR Pre-Paid',
-      createdAt: new Date().toISOString(),
-      estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  // Load orders from localStorage / Supabase on initial render so orders never reset across reloads!
+  useEffect(() => {
+    try {
+      const savedOrders = localStorage.getItem('nenoflex_orders');
+      if (savedOrders) {
+        const parsed = JSON.parse(savedOrders);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setOrders(parsed);
+        }
+      }
+
+      // Also try fetching from Supabase if configured via Vercel env
+      SupabaseService.fetchOrders().then(sbOrders => {
+        if (sbOrders && sbOrders.length > 0) {
+          setOrders(sbOrders);
+          localStorage.setItem('nenoflex_orders', JSON.stringify(sbOrders));
+        }
+      });
+    } catch (e) {
+      console.warn('Orders local storage load:', e);
     }
-  ]);
+  }, []);
+
+  // Dynamic Font Injector Helper
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    if (siteSettings.customFontDataUrl) {
+      const styleId = 'nenoflex-custom-device-font';
+      let styleEl = document.getElementById(styleId) as HTMLStyleElement;
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        document.head.appendChild(styleEl);
+      }
+      styleEl.innerHTML = `
+        @font-face {
+          font-family: '${siteSettings.customFontFamily}';
+          src: url('${siteSettings.customFontDataUrl}');
+          font-weight: normal;
+          font-style: normal;
+        }
+        body, button, input, select, textarea {
+          font-family: '${siteSettings.customFontFamily}', var(--font-sans), sans-serif !important;
+        }
+      `;
+    } else if (siteSettings.customFontFamily && siteSettings.customFontFamily !== 'Inter') {
+      document.body.style.fontFamily = `'${siteSettings.customFontFamily}', var(--font-sans), sans-serif`;
+    }
+  }, [siteSettings.customFontFamily, siteSettings.customFontDataUrl]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -190,9 +245,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateSiteSettings = (settings: SiteSettings) => {
     setSiteSettings(settings);
-    SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings, links, and promo modal');
+    SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings and font configuration');
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast('Site settings updated live!');
+    showToast('Site settings & Typography updated live!');
+  };
+
+  const uploadCustomFont = (fontName: string, fontDataUrl: string) => {
+    setSiteSettings(prev => ({
+      ...prev,
+      customFontFamily: fontName,
+      customFontDataUrl: fontDataUrl,
+    }));
+    SecuritySuite.logAuditAction('UPLOAD_CUSTOM_FONT', 'admin@nenoflex.com', userRole, 'Typography Engine', `Uploaded custom device font ${fontName}`);
+    setAuditLogs(SecuritySuite.getAuditLogs());
+    showToast(`Font "${fontName}" uploaded & applied site-wide!`);
   };
 
   const addCategory = (name: string) => {
@@ -344,12 +410,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     };
 
-    setOrders(prev => [newOrder, ...prev]);
+    setOrders(prev => {
+      const updated = [newOrder, ...prev];
+      try {
+        localStorage.setItem('nenoflex_orders', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('LocalStorage save:', e);
+      }
+      return updated;
+    });
+
     clearCart();
     setAppliedCoupon(null);
 
     // Audio chime notification for Order Push Notification!
     playAdminChime();
+
+    // Persist to Supabase if configured in Vercel
+    SupabaseService.saveOrder(newOrder);
 
     // Trigger Nodemailer API route to send email alert to flexnagaon@gmail.com
     try {
@@ -362,7 +440,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('Email dispatch trigger error:', e);
     }
 
-    SecuritySuite.logAuditAction('PLACE_ORDER', details.shippingAddress.email, 'Customer', 'Order Engine', `NEW ORDER PLACED! Order ${newOrder.id} for ₹${total} via ${details.paymentMethod}`);
+    const auditLog = SecuritySuite.logAuditAction('PLACE_ORDER', details.shippingAddress.email, 'Customer', 'Order Engine', `NEW ORDER PLACED! Order ${newOrder.id} for ₹${total} via ${details.paymentMethod}`);
+    SupabaseService.saveAuditLog(auditLog);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Order ${newOrder.id} Placed! Notification sent to Admin & flexnagaon@gmail.com 🔔`);
     return newOrder;
@@ -392,7 +471,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    setOrders(prev => {
+      const updated = prev.map(o => o.id === orderId ? { ...o, status } : o);
+      try {
+        localStorage.setItem('nenoflex_orders', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     SecuritySuite.logAuditAction('UPDATE_ORDER_STATUS', 'admin@nenoflex.com', userRole, 'Order Fulfillment', `Updated order ${orderId} to status ${status}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Updated order ${orderId} to "${status}"`);
@@ -428,6 +513,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteCategory,
         addBrand,
         deleteBrand,
+        uploadCustomFont,
         toggleWishlist,
         addToCart,
         removeFromCart,
