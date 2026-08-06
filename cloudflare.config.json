@@ -1,0 +1,31 @@
+{
+  "zone": "nenoflex.in",
+  "dns": [
+    { "type": "A", "name": "@", "content": "76.76.21.21", "proxied": true },
+    { "type": "CNAME", "name": "www", "content": "nenoflex.in", "proxied": true },
+    { "type": "CNAME", "name": "r2", "content": "pub-r2.nenoflex.in", "proxied": true }
+  ],
+  "ssl": {
+    "mode": "full_strict",
+    "min_tls_version": "1.2",
+    "hsts": {
+      "enabled": true,
+      "max_age": 31536000,
+      "include_subdomains": true,
+      "preload": true
+    }
+  },
+  "caching": {
+    "browser_cache_ttl": 14400,
+    "always_online": "on",
+    "development_mode": "off"
+  },
+  "ddos_protection": {
+    "sensitivity_level": "high",
+    "rate_limiting": {
+      "threshold": 100,
+      "period": 60,
+      "action": "challenge"
+    }
+  }
+}
