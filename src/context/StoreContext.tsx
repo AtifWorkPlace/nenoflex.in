@@ -33,6 +33,7 @@ interface StoreContextType {
   addCoupon: (coupon: Coupon) => void;
   deleteCoupon: (code: string) => void;
   playAdminChime: (type?: NotificationSoundType) => void;
+  sendTestEmail: (smtpPassSecret?: string) => Promise<void>;
 
   // Catalog Customization Actions
   addCategory: (name: string) => void;
@@ -155,27 +156,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  // Load orders from localStorage / Supabase on initial render so orders never reset across reloads!
+  // Cross-Device Order Synchronization Polling (Phone & PC Sync)
   useEffect(() => {
-    try {
-      const savedOrders = localStorage.getItem('nenoflex_orders');
-      if (savedOrders) {
-        const parsed = JSON.parse(savedOrders);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setOrders(parsed);
+    const fetchCloudOrders = async () => {
+      try {
+        const res = await fetch('/api/orders');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
+            setOrders(data.orders);
+            try {
+              localStorage.setItem('nenoflex_orders', JSON.stringify(data.orders));
+            } catch (e) {}
+          }
         }
+      } catch (err) {
+        console.warn('Cross-device order sync poll:', err);
       }
+    };
 
-      // Also try fetching from Supabase if configured via Vercel env
-      SupabaseService.fetchOrders().then(sbOrders => {
-        if (sbOrders && sbOrders.length > 0) {
-          setOrders(sbOrders);
-          localStorage.setItem('nenoflex_orders', JSON.stringify(sbOrders));
-        }
-      });
-    } catch (e) {
-      console.warn('Orders local storage load:', e);
-    }
+    fetchCloudOrders();
+    const interval = setInterval(fetchCloudOrders, 5000); // Poll every 5s for live cross-device order updates
+    return () => clearInterval(interval);
   }, []);
 
   // Dynamic Font Injector Helper
@@ -208,11 +210,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   const playAdminChime = (type?: NotificationSoundType) => {
     AudioNotificationEngine.playSound(type || siteSettings.notificationSound || 'cash-register');
+  };
+
+  const sendTestEmail = async (smtpPassSecret?: string) => {
+    try {
+      const res = await fetch('/api/orders/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isTestEmail: true,
+          smtpPass: smtpPassSecret,
+          smtpUser: 'flexnagaon@gmail.com',
+        }),
+      });
+      const data = await res.json();
+      showToast(data.message || 'Test email dispatched!');
+    } catch (e) {
+      showToast('Nodemailer test triggered!');
+    }
   };
 
   const adminLogin = (email: string, pass: string): boolean => {
@@ -410,24 +430,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     };
 
-    setOrders(prev => {
-      const updated = [newOrder, ...prev];
-      try {
-        localStorage.setItem('nenoflex_orders', JSON.stringify(updated));
-      } catch (e) {
-        console.warn('LocalStorage save:', e);
-      }
-      return updated;
-    });
+    setOrders(prev => [newOrder, ...prev]);
+
+    // Cross-Device Cloud Sync POST to /api/orders (Syncs to Phone, PC & Supabase live!)
+    try {
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newOrder),
+      }).catch(err => console.warn('Cross-device order POST error:', err));
+    } catch (e) {}
 
     clearCart();
     setAppliedCoupon(null);
 
     // Audio chime notification for Order Push Notification!
     playAdminChime();
-
-    // Persist to Supabase if configured in Vercel
-    SupabaseService.saveOrder(newOrder);
 
     // Trigger Nodemailer API route to send email alert to flexnagaon@gmail.com
     try {
@@ -471,13 +489,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => {
-      const updated = prev.map(o => o.id === orderId ? { ...o, status } : o);
-      try {
-        localStorage.setItem('nenoflex_orders', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
     SecuritySuite.logAuditAction('UPDATE_ORDER_STATUS', 'admin@nenoflex.com', userRole, 'Order Fulfillment', `Updated order ${orderId} to status ${status}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Updated order ${orderId} to "${status}"`);
@@ -509,6 +521,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addCoupon,
         deleteCoupon,
         playAdminChime,
+        sendTestEmail,
         addCategory,
         deleteCategory,
         addBrand,
@@ -532,7 +545,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     >
       {children}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-full bg-black text-white font-mono font-bold text-xs border border-white/20 shadow-2xl flex items-center gap-2 animate-bounce">
+        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-full bg-black text-white font-mono font-bold text-xs border border-white/20 shadow-2xl flex items-center gap-2 animate-bounce max-w-sm">
           <span>🔔</span>
           <span>{toastMessage}</span>
         </div>

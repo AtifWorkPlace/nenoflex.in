@@ -18,7 +18,10 @@ import {
   Check,
   Layers,
   Upload,
-  Type
+  Type,
+  Mail,
+  RefreshCw,
+  Send
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product } from '@/types';
@@ -38,6 +41,7 @@ export default function EnterpriseAdminDashboard() {
     addCoupon,
     deleteCoupon,
     playAdminChime,
+    sendTestEmail,
     addCategory,
     deleteCategory,
     addBrand,
@@ -82,6 +86,7 @@ export default function EnterpriseAdminDashboard() {
   const [footerInstagram, setFooterInstagram] = useState(siteSettings.footerInstagram);
   const [footerInstagramUrl, setFooterInstagramUrl] = useState(siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon');
   const [footerCopyright, setFooterCopyright] = useState(siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.');
+  const [smtpPassSecret, setSmtpPassSecret] = useState('');
 
   // New Category & Brand Form
   const [newCatName, setNewCatName] = useState('');
@@ -246,11 +251,14 @@ export default function EnterpriseAdminDashboard() {
             <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-mono font-bold">
               ROLE: {userRole.toUpperCase()} (101% CONTROL)
             </span>
+            <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" /> PHONE & PC CLOUD SYNC ONLINE
+            </span>
           </div>
           <h1 className="luxury-heading text-3xl font-bold text-white mt-1">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">Order Storage Persistence, Device Font Uploader & Nodemailer Alerting.</p>
+          <p className="text-xs text-neutral-400">Cross-Device Order Sync, Gmail Nodemailer & Device Font Engine.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -437,11 +445,46 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 5: SITE BANNER & SOCIAL REDIRECT LINKS CUSTOMIZER */}
+      {/* TAB 6: SITE BANNER, SOCIAL REDIRECTS & NODEMAILER GMAIL CONFIG */}
       {activeTab === 'banner' && (
         <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <h2 className="text-xl font-bold text-white font-mono uppercase">101% Site Banner, Moving Ticker & Redirect Link Control</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white font-mono uppercase">101% Site Banner, Social Links & Nodemailer Config</h2>
+            <button
+              onClick={() => sendTestEmail(smtpPassSecret)}
+              className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs font-mono uppercase flex items-center gap-2 shadow-lg"
+            >
+              <Send className="w-3.5 h-3.5" /> 📧 Send Test Email to flexnagaon@gmail.com
+            </button>
+          </div>
+
           <form onSubmit={handleSaveSettings} className="space-y-4 text-xs max-w-2xl">
+            <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
+              <h3 className="font-bold text-emerald-400 uppercase font-mono flex items-center gap-2">
+                <Mail className="w-4 h-4" /> Nodemailer Gmail SMTP Dispatch Credentials
+              </h3>
+              <div>
+                <label className="block text-neutral-400 font-mono mb-1">Target Receiver Mail</label>
+                <input
+                  type="text"
+                  value="flexnagaon@gmail.com"
+                  readOnly
+                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-neutral-800 text-emerald-400 font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-neutral-400 font-mono mb-1">Gmail App Password (16-character App Password)</label>
+                <input
+                  type="password"
+                  value={smtpPassSecret}
+                  onChange={e => setSmtpPassSecret(e.target.value)}
+                  placeholder="Enter your Gmail App Password (e.g. abcd efgh ijkl mnop)"
+                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                />
+                <p className="text-[10px] text-neutral-500 mt-1">Generates directly in Google Account → Security → App Passwords.</p>
+              </div>
+            </div>
+
             <div>
               <label className="block text-neutral-400 font-mono mb-1">Continuous Moving Ticker Banner Text (Screenshot 2 Spec)</label>
               <input
@@ -449,17 +492,6 @@ export default function EnterpriseAdminDashboard() {
                 value={heroTickerText}
                 onChange={e => setHeroTickerText(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-amber-400 font-mono"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Top Announcement Ticker</label>
-              <input
-                type="text"
-                value={bannerText}
-                onChange={e => setBannerText(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                 required
               />
             </div>
@@ -531,14 +563,24 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 8: FULFILLMENT & ORDERS LOG WITH NODEMAILER ALERT RE-DISPATCH */}
+      {/* TAB 8: CROSS-DEVICE ORDERS FULFILLMENT LOG */}
       {activeTab === 'orders' && (
         <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white font-mono uppercase">Fulfillment & Live Orders Log ({orders.length})</h2>
-            <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
-              EMAIL NOTIFICATION: flexnagaon@gmail.com
-            </span>
+            <h2 className="text-xl font-bold text-white font-mono uppercase">
+              Cross-Device Cloud Orders Log ({orders.length})
+            </h2>
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
+                PHONE & PC LIVE SYNC: flexnagaon@gmail.com
+              </span>
+              <button
+                onClick={() => sendTestEmail(smtpPassSecret)}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-mono flex items-center gap-1"
+              >
+                <Mail className="w-3.5 h-3.5" /> Test Mailer
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
