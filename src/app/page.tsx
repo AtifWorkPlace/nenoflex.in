@@ -16,6 +16,8 @@ export default function HomePage() {
 
   const boxOrder = siteSettings.collectionBoxOrder || ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'];
 
+  const tickerText = siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||';
+
   const renderCollectionBox = (boxId: string) => {
     switch (boxId) {
       case 'bento-banner':
@@ -73,18 +75,14 @@ export default function HomePage() {
 
       case 'jerseys':
         return (
-          <section key="jerseys" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-200">
-            <div className="text-center my-8">
-              <h2 className="luxury-title text-4xl sm:text-5xl font-serif text-black">
-                New Drops Jerseys 🔥 🚀
+          <section key="jerseys" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-900">
+            <div className="my-8">
+              <h2 className="luxury-title text-3xl sm:text-4xl font-serif text-white flex items-center gap-2">
+                New Drops 🔥
               </h2>
-              <div className="flex justify-between items-center mt-6 text-xs text-neutral-500 border-b border-neutral-200 pb-3 font-mono">
-                <span>Availability • Price</span>
-                <span>{jerseys.length} items</span>
-              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
               {jerseys.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -94,12 +92,12 @@ export default function HomePage() {
 
       case 'jackets-fleeces':
         return (
-          <section key="jackets-fleeces" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-200">
+          <section key="jackets-fleeces" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-900">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold uppercase font-mono tracking-wider text-black">
+              <h2 className="text-2xl font-bold uppercase font-mono tracking-wider text-white">
                 Vintage Fleeces & Puffer Vests
               </h2>
-              <Link href="/shop" className="text-xs font-mono font-bold uppercase text-black hover:underline flex items-center gap-1">
+              <Link href="/shop" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
                 Shop All <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -114,7 +112,7 @@ export default function HomePage() {
 
       case 'brands':
         return (
-          <section key="brands" className="bg-neutral-100 py-12 border-y border-neutral-200 text-black">
+          <section key="brands" className="bg-neutral-950 py-12 border-y border-neutral-900 text-white">
             <div className="max-w-7xl mx-auto px-4 text-center space-y-6">
               <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">
                 Handpicked Vault Brands
@@ -123,7 +121,7 @@ export default function HomePage() {
                 {BRANDS_LIST.map((brand, idx) => (
                   <span
                     key={idx}
-                    className="px-4 py-2 bg-white border border-neutral-300 text-black font-mono text-xs font-bold uppercase rounded-full shadow-sm"
+                    className="px-4 py-2 bg-neutral-900 border border-neutral-800 text-white font-mono text-xs font-bold uppercase rounded-full shadow-sm"
                   >
                     {brand.logo} {brand.name}
                   </span>
@@ -139,50 +137,37 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-white text-black font-sans">
-      {/* HERO SHOWCASE SECTION */}
+    <div className="relative min-h-screen bg-black text-white font-sans">
+      {/* SCREENSHOT 2 ALIGNED HERO SHOWCASE SECTION */}
       <section className="relative min-h-[85vh] bg-black text-white flex flex-col items-center justify-between px-4 text-center overflow-hidden py-12">
         <HeroCanvas />
 
-        <div className="z-10 mt-2">
-          <span className="px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs font-mono tracking-widest text-neutral-200 uppercase" suppressHydrationWarning>
-            {siteSettings.announcementBanner}
-          </span>
-        </div>
-
-        <div className="z-10 my-auto flex flex-col items-center justify-center space-y-4 max-w-4xl">
-          <h1 className="luxury-title text-7xl sm:text-9xl md:text-[12rem] font-bold text-white tracking-tighter leading-none select-none">
+        <div className="z-10 my-auto flex flex-col items-center justify-center space-y-6 max-w-4xl">
+          <h1 className="luxury-title text-8xl sm:text-[13rem] md:text-[16rem] font-bold text-white tracking-tighter leading-none select-none">
             flex
           </h1>
-          <h2 className="text-xl sm:text-3xl font-serif text-neutral-300 tracking-tight" suppressHydrationWarning>
-            {siteSettings.heroTitle}
-          </h2>
-          <p className="text-xs sm:text-sm text-neutral-400 font-mono" suppressHydrationWarning>
-            {siteSettings.heroSubtitle}
-          </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-6">
+          <div className="pt-4">
             <Link
               href="/shop"
-              className="px-8 py-4 rounded-full bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-neutral-200 transition-all hover:scale-105 shadow-2xl flex items-center gap-2"
+              className="px-6 py-2.5 rounded-full bg-transparent text-white font-mono text-xs uppercase tracking-wider border border-white/20 hover:bg-white hover:text-black transition-all hover:scale-105"
               suppressHydrationWarning
             >
-              {siteSettings.heroCtaText || 'Shop Now'} <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href="/collections"
-              className="px-8 py-4 rounded-full bg-transparent border border-white/30 text-white font-bold text-xs uppercase tracking-wider hover:bg-white/10 transition-all hover:scale-105"
-              suppressHydrationWarning
-            >
-              {siteSettings.heroSecondaryCtaText || 'Explore Vault'}
+              {siteSettings.heroCtaText || 'Shop now'}
             </Link>
           </div>
         </div>
-
-        <div className="z-10 mb-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400">
-          Scroll to explore vault drops
-        </div>
       </section>
+
+      {/* CONTINUOUS MOVING TICKER BANNER (SCREENSHOT 2 ALIGNED) */}
+      <div className="w-full bg-black border-y border-neutral-800 py-3 overflow-hidden font-mono text-[11px] uppercase tracking-widest text-neutral-300">
+        <div className="whitespace-nowrap flex animate-marquee space-x-8">
+          <span>{tickerText}</span>
+          <span>{tickerText}</span>
+          <span>{tickerText}</span>
+          <span>{tickerText}</span>
+        </div>
+      </div>
 
       {/* DYNAMICALLY REORDERABLE HOMEPAGE COLLECTION BOXES */}
       {boxOrder.map(boxId => renderCollectionBox(boxId))}

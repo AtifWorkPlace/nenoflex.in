@@ -81,10 +81,8 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [wishlist, setWishlist] = useState<string[]>(['nf-tnf-blue-fleece']);
-  const [cart, setCart] = useState<CartItem[]>([
-    { product: INITIAL_PRODUCTS[0], selectedSize: 'L', quantity: 1 }
-  ]);
+  const [wishlist, setWishlist] = useState<string[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]); // Fresh empty cart for new customer visits!
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
@@ -95,14 +93,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({
     announcementBanner: 'from showrooms 89%-90% off!!',
-    heroTitle: 'New Drops Jerseys 🔥 🚀',
+    heroTitle: 'New Drops 🔥',
     heroSubtitle: 'Handpicked Imported Vintage & Streetwear Vault',
-    heroCtaText: 'Shop Now',
+    heroCtaText: 'Shop now',
     heroSecondaryCtaText: 'Explore Vault',
+    heroTickerText: 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||',
     footerTagline: 'Flex Your Style. Premium Handpicked Imported Vault.',
     footerPhone: '+91 60001 49919',
+    footerWhatsappUrl: 'https://wa.me/916000149919',
     footerInstagram: '@flexnagaon',
-    footerCopyright: '© 2026 NenoFlex Official. All rights reserved.',
+    footerInstagramUrl: 'https://instagram.com/flexnagaon',
+    footerCopyright: '© 2022 NenoFlex Official. All rights reserved.',
     collectionBoxOrder: ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'],
     notificationSound: 'cash-register',
     customCategories: ['Jerseys', 'Jackets', 'Sweatshirts', 'Hoodies', 'Windbreakers', 'Graphic Tees', 'Oversized T-Shirts', 'Cargo Pants', 'Jeans', 'Caps'],
@@ -137,8 +138,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       courier: 'BlueDart Express Air',
       shippingAddress: {
         fullName: 'Atif',
-        email: 'atif@nenoflex.com',
-        phone: '+91 60001 49918',
+        email: 'flexnagaon@gmail.com',
+        phone: '+91 60001 49919',
         address: 'Guwahati AS',
         city: 'Guwahati',
         state: 'Assam',
@@ -189,7 +190,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateSiteSettings = (settings: SiteSettings) => {
     setSiteSettings(settings);
-    SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings, catalog & promo modal');
+    SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings, links, and promo modal');
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast('Site settings updated live!');
   };
@@ -350,9 +351,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Audio chime notification for Order Push Notification!
     playAdminChime();
 
+    // Trigger Nodemailer API route to send email alert to flexnagaon@gmail.com
+    try {
+      fetch('/api/orders/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newOrder),
+      }).catch(err => console.warn('Email API dispatch background:', err));
+    } catch (e) {
+      console.warn('Email dispatch trigger error:', e);
+    }
+
     SecuritySuite.logAuditAction('PLACE_ORDER', details.shippingAddress.email, 'Customer', 'Order Engine', `NEW ORDER PLACED! Order ${newOrder.id} for ₹${total} via ${details.paymentMethod}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Order ${newOrder.id} Placed! Notification sent to Admin 🔔`);
+    showToast(`Order ${newOrder.id} Placed! Notification sent to Admin & flexnagaon@gmail.com 🔔`);
     return newOrder;
   };
 

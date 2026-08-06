@@ -20,7 +20,7 @@ import {
   Check,
   Layers,
   Upload,
-  Image as ImageIcon
+  Link as LinkIcon
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
@@ -58,8 +58,9 @@ export default function EnterpriseAdminDashboard() {
   const [bannerText, setBannerText] = useState(siteSettings.announcementBanner);
   const [heroTitleText, setHeroTitleText] = useState(siteSettings.heroTitle);
   const [heroSubText, setHeroSubText] = useState(siteSettings.heroSubtitle);
-  const [heroCtaText, setHeroCtaText] = useState(siteSettings.heroCtaText || 'Shop Now');
+  const [heroCtaText, setHeroCtaText] = useState(siteSettings.heroCtaText || 'Shop now');
   const [heroSecondaryCtaText, setHeroSecondaryCtaText] = useState(siteSettings.heroSecondaryCtaText || 'Explore Vault');
+  const [heroTickerText, setHeroTickerText] = useState(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
 
   // Promo Pop-Up Banner Form
   const [promoEnabled, setPromoEnabled] = useState(siteSettings.promoModal?.enabled ?? true);
@@ -72,11 +73,13 @@ export default function EnterpriseAdminDashboard() {
   // Sound Engine Form
   const [selectedSound, setSelectedSound] = useState<NotificationSoundType>(siteSettings.notificationSound || 'cash-register');
 
-  // Footer Customizer Form
+  // Footer & Social Links Customizer Form
   const [footerTagline, setFooterTagline] = useState(siteSettings.footerTagline);
   const [footerPhone, setFooterPhone] = useState(siteSettings.footerPhone);
+  const [footerWhatsappUrl, setFooterWhatsappUrl] = useState(siteSettings.footerWhatsappUrl || 'https://wa.me/916000149919');
   const [footerInstagram, setFooterInstagram] = useState(siteSettings.footerInstagram);
-  const [footerCopyright, setFooterCopyright] = useState(siteSettings.footerCopyright);
+  const [footerInstagramUrl, setFooterInstagramUrl] = useState(siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon');
+  const [footerCopyright, setFooterCopyright] = useState(siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.');
 
   // New Category & Brand Form
   const [newCatName, setNewCatName] = useState('');
@@ -178,9 +181,12 @@ export default function EnterpriseAdminDashboard() {
       heroSubtitle: heroSubText,
       heroCtaText,
       heroSecondaryCtaText,
+      heroTickerText,
       footerTagline,
       footerPhone,
+      footerWhatsappUrl,
       footerInstagram,
+      footerInstagramUrl,
       footerCopyright,
     });
   };
@@ -249,7 +255,7 @@ export default function EnterpriseAdminDashboard() {
           <h1 className="luxury-heading text-3xl font-bold text-white mt-1">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">Device File Image Upload, Customizable Catalog & Condition Bar.</p>
+          <p className="text-xs text-neutral-400">WhatsApp & Instagram Link Redirect Control, Moving Ticker, Nodemailer Alert Engine.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -276,7 +282,7 @@ export default function EnterpriseAdminDashboard() {
           { id: 'catalog', label: '2. Catalog Categories & Brands', icon: Layers },
           { id: 'promo', label: '3. Promo Pop-up Banner', icon: Eye },
           { id: 'sound', label: '4. Order Sound Chime', icon: Volume2 },
-          { id: 'banner', label: '5. Site Banner & Buttons', icon: Settings },
+          { id: 'banner', label: '5. Site Banner & Social Redirects', icon: Settings },
           { id: 'coupons', label: `6. Coupons (${coupons.length})`, icon: Tag },
           { id: 'orders', label: `7. Orders (${orders.length})`, icon: TrendingUp },
           { id: 'audit', label: `8. Audit Logs (${auditLogs.length})`, icon: FileText },
@@ -465,161 +471,22 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: PROMO POP-UP BANNER CUSTOMIZER */}
-      {activeTab === 'promo' && (
-        <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-white font-mono uppercase">Homepage Promo Pop-up Control</h2>
-              <p className="text-xs text-neutral-400 mt-1">Configure pop-up banner appearance, title, offer copy, image, and ON/OFF switch.</p>
-            </div>
-
-            <div className="flex items-center gap-3 bg-neutral-900 p-2.5 rounded-full border border-neutral-800">
-              <span className="text-xs font-mono font-bold text-neutral-300">
-                STATUS: <strong className={promoEnabled ? 'text-emerald-400' : 'text-rose-400'}>{promoEnabled ? 'ACTIVE (ON)' : 'OFF'}</strong>
-              </span>
-              <button
-                onClick={() => setPromoEnabled(!promoEnabled)}
-                className={`w-14 h-7 rounded-full transition-all relative ${
-                  promoEnabled ? 'bg-emerald-600' : 'bg-neutral-700'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full bg-white absolute top-1 transition-all ${
-                  promoEnabled ? 'right-1' : 'left-1'
-                }`} />
-              </button>
-            </div>
-          </div>
-
-          <form onSubmit={handleSavePromo} className="space-y-4 text-xs max-w-2xl">
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Pop-up Title</label>
-              <input
-                type="text"
-                value={promoTitle}
-                onChange={e => setPromoTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Pop-up Subtitle / Offer Copy</label>
-              <textarea
-                value={promoSubtitle}
-                onChange={e => setPromoSubtitle(e.target.value)}
-                rows={2}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Banner Image URL</label>
-              <input
-                type="text"
-                value={promoImage}
-                onChange={e => setPromoImage(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">CTA Button Text</label>
-                <input
-                  type="text"
-                  value={promoBtnText}
-                  onChange={e => setPromoBtnText(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">CTA Button Link</label>
-                <input
-                  type="text"
-                  value={promoBtnLink}
-                  onChange={e => setPromoBtnLink(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 shadow-xl"
-            >
-              Save Pop-Up Banner Settings
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 4: ORDER PUSH NOTIFICATION SOUND ENGINE */}
-      {activeTab === 'sound' && (
-        <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold text-white font-mono uppercase">Order Push Notification Sound Engine</h2>
-            <p className="text-xs text-neutral-400 mt-1">Select the chime audio sound played whenever a customer completes an order.</p>
-          </div>
-
-          <form onSubmit={handleSaveSound} className="space-y-6 max-w-xl text-xs">
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { id: 'cash-register', name: 'Cash Register Chime 💸', desc: 'Double metallic cash register bell' },
-                { id: 'luxury-bell', name: 'Luxury Bell 🔔', desc: 'Resonating crystal glass bell' },
-                { id: 'ping', name: 'Subtle Ping ⚡', desc: 'Crisp minimal high frequency ping' },
-                { id: 'alert', name: 'Executive Alert 🚨', desc: 'Bold two-tone notification' },
-              ].map(snd => (
-                <div
-                  key={snd.id}
-                  onClick={() => {
-                    setSelectedSound(snd.id as any);
-                    playAdminChime(snd.id as any);
-                  }}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                    selectedSound === snd.id
-                      ? 'bg-amber-950/40 border-amber-500 text-amber-300'
-                      : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700'
-                  }`}
-                >
-                  <div className="font-mono font-bold text-sm text-white flex items-center justify-between">
-                    <span>{snd.name}</span>
-                    {selectedSound === snd.id && <Check className="w-4 h-4 text-amber-400" />}
-                  </div>
-                  <p className="text-[11px] text-neutral-400 mt-1">{snd.desc}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => playAdminChime(selectedSound)}
-                className="px-6 py-3 rounded-full bg-neutral-800 text-white font-mono text-xs font-bold hover:bg-neutral-700 flex items-center gap-2"
-              >
-                <Volume2 className="w-4 h-4 text-amber-400" /> Test Sound Chime 🔔
-              </button>
-
-              <button
-                type="submit"
-                className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200"
-              >
-                Save Selected Sound
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 5: SITE BANNER & BUTTONS CUSTOMIZER */}
+      {/* TAB 5: SITE BANNER & SOCIAL REDIRECT LINKS CUSTOMIZER */}
       {activeTab === 'banner' && (
         <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <h2 className="text-xl font-bold text-white font-mono uppercase">101% Site Banner & Button Controls</h2>
+          <h2 className="text-xl font-bold text-white font-mono uppercase">101% Site Banner, Moving Ticker & Redirect Link Control</h2>
           <form onSubmit={handleSaveSettings} className="space-y-4 text-xs max-w-2xl">
+            <div>
+              <label className="block text-neutral-400 font-mono mb-1">Continuous Moving Ticker Banner Text (Screenshot 2 Spec)</label>
+              <input
+                type="text"
+                value={heroTickerText}
+                onChange={e => setHeroTickerText(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-amber-400 font-mono"
+                required
+              />
+            </div>
+
             <div>
               <label className="block text-neutral-400 font-mono mb-1">Top Announcement Ticker</label>
               <input
@@ -630,116 +497,91 @@ export default function EnterpriseAdminDashboard() {
                 required
               />
             </div>
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Homepage Hero Title</label>
-              <input
-                type="text"
-                value={heroTitleText}
-                onChange={e => setHeroTitleText(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Hero Subtitle</label>
-              <input
-                type="text"
-                value={heroSubText}
-                onChange={e => setHeroSubText(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                required
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-neutral-400 font-mono mb-1">WhatsApp Number</label>
+                <input
+                  type="text"
+                  value={footerPhone}
+                  onChange={e => setFooterPhone(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-neutral-400 font-mono mb-1">WhatsApp Redirect Link URL</label>
+                <input
+                  type="text"
+                  value={footerWhatsappUrl}
+                  onChange={e => setFooterWhatsappUrl(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-emerald-400 font-mono"
+                  required
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-neutral-400 font-mono mb-1">Hero Primary Button Label</label>
+                <label className="block text-neutral-400 font-mono mb-1">Instagram Handle</label>
                 <input
                   type="text"
-                  value={heroCtaText}
-                  onChange={e => setHeroCtaText(e.target.value)}
+                  value={footerInstagram}
+                  onChange={e => setFooterInstagram(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                   required
                 />
               </div>
               <div>
-                <label className="block text-neutral-400 font-mono mb-1">Hero Secondary Button Label</label>
+                <label className="block text-neutral-400 font-mono mb-1">Instagram Redirect Link URL</label>
                 <input
                   type="text"
-                  value={heroSecondaryCtaText}
-                  onChange={e => setHeroSecondaryCtaText(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
+                  value={footerInstagramUrl}
+                  onChange={e => setFooterInstagramUrl(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-pink-400 font-mono"
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-neutral-400 font-mono mb-1">Footer Copyright Notice</label>
+              <input
+                type="text"
+                value={footerCopyright}
+                onChange={e => setFooterCopyright(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
+                required
+              />
             </div>
 
             <button
               type="submit"
               className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200"
             >
-              Update All Buttons & Copy Live
+              Update All Redirect Links & Copy Live
             </button>
           </form>
         </div>
       )}
 
-      {/* TAB 6: PROMO COUPONS MANAGER */}
-      {activeTab === 'coupons' && (
-        <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <h2 className="text-xl font-bold text-white font-mono uppercase">Promo Voucher Control</h2>
-          <form onSubmit={handleCreateCoupon} className="flex gap-3 text-xs max-w-lg">
-            <input
-              type="text"
-              value={newCouponCode}
-              onChange={e => setNewCouponCode(e.target.value)}
-              placeholder="Voucher Code (e.g. SALE20)"
-              className="flex-1 px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white uppercase font-mono"
-              required
-            />
-            <input
-              type="number"
-              value={newCouponDiscount}
-              onChange={e => setNewCouponDiscount(Number(e.target.value))}
-              placeholder="Discount %"
-              className="w-28 px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-              required
-            />
-            <button type="submit" className="px-6 py-3 rounded-full bg-white text-black font-bold text-xs uppercase">
-              Create
-            </button>
-          </form>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-            {coupons.map(c => (
-              <div key={c.code} className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-between">
-                <div>
-                  <span className="font-mono font-bold text-white text-base">{c.code}</span>
-                  <p className="text-xs text-emerald-400 font-mono">{c.discountPercent}% Discount</p>
-                </div>
-                <button
-                  onClick={() => deleteCoupon(c.code)}
-                  className="p-2 text-neutral-500 hover:text-rose-400"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 7: FULFILLMENT MANAGER */}
+      {/* TAB 7: FULFILLMENT & ORDERS LOG WITH NODEMAILER ALERT RE-DISPATCH */}
       {activeTab === 'orders' && (
         <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-          <h2 className="text-xl font-bold text-white font-mono uppercase">Fulfillment & Live Orders Log</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white font-mono uppercase">Fulfillment & Live Orders Log</h2>
+            <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
+              EMAIL NOTIFICATION: flexnagaon@gmail.com
+            </span>
+          </div>
+
           <div className="space-y-3">
             {orders.map(o => (
-              <div key={o.id} className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+              <div key={o.id} className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
                 <div>
-                  <span className="font-mono font-bold text-white text-sm">{o.id}</span>
-                  <p className="text-neutral-400">{o.shippingAddress.fullName} • {o.shippingAddress.city}</p>
-                  <p className="text-emerald-400 font-mono">₹{o.total} via {o.paymentMethod}</p>
+                  <span className="font-bold text-white text-sm">{o.id}</span>
+                  <p className="text-neutral-400">{o.shippingAddress.fullName} • {o.shippingAddress.email} ({o.shippingAddress.phone})</p>
+                  <p className="text-emerald-400">₹{o.total} via {o.paymentMethod}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-neutral-400 font-mono">Status:</span>
@@ -762,42 +604,7 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 8: AUDIT LOGS */}
-      {activeTab === 'audit' && (
-        <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white font-mono uppercase">Security Audit Log Feed</h2>
-            <span className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-400 font-mono text-xs font-bold border border-rose-500/30">
-              REAL-TIME MONITORING
-            </span>
-          </div>
-
-          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-            {auditLogs.length === 0 ? (
-              <p className="text-xs text-neutral-500 font-mono">No security events logged yet.</p>
-            ) : (
-              auditLogs.map(log => (
-                <div key={log.id} className="p-3.5 rounded-2xl bg-neutral-900 border border-neutral-800 text-xs space-y-1 font-mono">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded bg-white/10 text-amber-400 font-bold text-[10px]">
-                      {log.action}
-                    </span>
-                    <span className="text-neutral-500 text-[10px]">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                  </div>
-                  <p className="text-white text-xs pt-1">{log.details}</p>
-                  <div className="flex items-center gap-4 text-[10px] text-neutral-500 pt-1 border-t border-neutral-800">
-                    <span>Actor: {log.actorEmail} ({log.actorRole})</span>
-                    <span>Target: {log.targetResource}</span>
-                    <span>IP: {log.ipAddress}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* CREATE / EDIT PRODUCT MODAL WITH DEVICE FILE PICKER & CONDITION SCORE BAR */}
+      {/* CREATE / EDIT PRODUCT MODAL WITH DEVICE FILE PICKER */}
       {(showAddModal || editingProduct) && (
         <div className="fixed inset-0 z-50 p-4 flex items-center justify-center bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-2xl bg-neutral-900 border border-neutral-700 rounded-3xl p-6 sm:p-8 space-y-4 text-white overflow-y-auto max-h-[90vh] shadow-2xl font-sans">
@@ -849,170 +656,6 @@ export default function EnterpriseAdminDashboard() {
                   className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white"
                   required
                 />
-              </div>
-
-              {/* CLOTH CONDITION SCORE & GRADE BAR CUSTOMIZER */}
-              <div className="p-4 rounded-2xl bg-black border border-neutral-800 space-y-3">
-                <div className="flex justify-between items-center font-mono">
-                  <label className="text-amber-400 font-bold uppercase text-xs">Cloth Condition Score & Grade Bar</label>
-                  <span className="text-emerald-400 font-bold text-sm">
-                    {editingProduct ? editingProduct.conditionScore : newProd.conditionScore} / 10
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min="8.0"
-                  max="10.0"
-                  step="0.1"
-                  value={editingProduct ? editingProduct.conditionScore : newProd.conditionScore}
-                  onChange={e => {
-                    const score = Number(e.target.value);
-                    let grade: ProductCondition = 'Mint (9.8-10)';
-                    if (score < 9.0) grade = 'Vintage Choice (8.5-8.9)';
-                    else if (score < 9.4) grade = 'Excellent (9.0-9.3)';
-                    else if (score < 9.8) grade = 'Like New (9.4-9.7)';
-
-                    if (editingProduct) {
-                      setEditingProduct({ ...editingProduct, conditionScore: score, conditionGrade: grade });
-                    } else {
-                      setNewProd({ ...newProd, conditionScore: score, conditionGrade: grade });
-                    }
-                  }}
-                  className="w-full accent-emerald-400"
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-neutral-500 text-[10px] font-mono">Condition Grade Label</label>
-                    <select
-                      value={editingProduct ? editingProduct.conditionGrade : newProd.conditionGrade}
-                      onChange={e => {
-                        const grade = e.target.value as ProductCondition;
-                        if (editingProduct) {
-                          setEditingProduct({ ...editingProduct, conditionGrade: grade });
-                        } else {
-                          setNewProd({ ...newProd, conditionGrade: grade });
-                        }
-                      }}
-                      className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono text-xs"
-                    >
-                      <option value="Mint (9.8-10)">Mint (9.8-10)</option>
-                      <option value="Like New (9.4-9.7)">Like New (9.4-9.7)</option>
-                      <option value="Excellent (9.0-9.3)">Excellent (9.0-9.3)</option>
-                      <option value="Vintage Choice (8.5-8.9)">Vintage Choice (8.5-8.9)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-neutral-500 text-[10px] font-mono">Select Category</label>
-                    <select
-                      value={editingProduct ? editingProduct.category : newProd.category}
-                      onChange={e => {
-                        const cat = e.target.value as any;
-                        if (editingProduct) setEditingProduct({ ...editingProduct, category: cat });
-                        else setNewProd({ ...newProd, category: cat });
-                      }}
-                      className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono text-xs"
-                    >
-                      {siteSettings.customCategories.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono">Price (₹)</label>
-                  <input
-                    type="number"
-                    value={editingProduct ? editingProduct.price : newProd.price}
-                    onChange={e =>
-                      editingProduct
-                        ? setEditingProduct({ ...editingProduct, price: Number(e.target.value) })
-                        : setNewProd({ ...newProd, price: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono">MSRP (₹)</label>
-                  <input
-                    type="number"
-                    value={editingProduct ? editingProduct.showroomPrice : newProd.showroomPrice}
-                    onChange={e =>
-                      editingProduct
-                        ? setEditingProduct({ ...editingProduct, showroomPrice: Number(e.target.value) })
-                        : setNewProd({ ...newProd, showroomPrice: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono">Stock</label>
-                  <input
-                    type="number"
-                    value={editingProduct ? editingProduct.stockCount : newProd.stockCount}
-                    onChange={e =>
-                      editingProduct
-                        ? setEditingProduct({ ...editingProduct, stockCount: Number(e.target.value) })
-                        : setNewProd({ ...newProd, stockCount: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* DEVICE FILE IMAGE UPLOADER FOR PRIMARY & HOVER IMAGES */}
-              <div className="p-4 rounded-2xl bg-black border border-neutral-800 space-y-3">
-                <label className="block text-amber-400 font-bold uppercase text-xs font-mono">
-                  Upload Product Images Directly From Device 📁
-                </label>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Primary Image Uploader */}
-                  <div className="space-y-2">
-                    <label className="block text-neutral-400 text-[11px] font-mono">1. Primary Product Image</label>
-                    <div className="flex items-center gap-2">
-                      <label className="cursor-pointer px-4 py-2 rounded-xl bg-white text-black font-bold text-[11px] hover:bg-neutral-200 flex items-center gap-1.5 shadow-md">
-                        <Upload className="w-3.5 h-3.5" /> Upload File
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={e => e.target.files?.[0] && handleDeviceImageUpload(e.target.files[0], 'primary')}
-                        />
-                      </label>
-                      <span className="text-[10px] text-neutral-500 truncate">
-                        {(editingProduct ? editingProduct.image : newProd.image) ? 'Image Set ✓' : 'No file'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Hover 2nd Image Uploader */}
-                  <div className="space-y-2">
-                    <label className="block text-neutral-400 text-[11px] font-mono">2. Hover 2nd Image</label>
-                    <div className="flex items-center gap-2">
-                      <label className="cursor-pointer px-4 py-2 rounded-xl bg-white text-black font-bold text-[11px] hover:bg-neutral-200 flex items-center gap-1.5 shadow-md">
-                        <Upload className="w-3.5 h-3.5" /> Upload File
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={e => e.target.files?.[0] && handleDeviceImageUpload(e.target.files[0], 'hover')}
-                        />
-                      </label>
-                      <span className="text-[10px] text-neutral-500 truncate">
-                        {(editingProduct ? editingProduct.imageHover : newProd.imageHover) ? '2nd Image Set ✓' : 'No file'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3">

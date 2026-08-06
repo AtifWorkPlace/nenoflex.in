@@ -67,15 +67,28 @@ export const Footer: React.FC = () => {
             {siteSettings.footerTagline}
           </p>
 
-          <div className="space-y-1.5 text-xs text-neutral-300 font-mono pt-1">
-            <p className="flex items-center gap-2">
-              <Phone className="w-3.5 h-3.5 text-emerald-400" />
-              <span>WhatsApp: <strong className="text-white">{siteSettings.footerPhone}</strong></span>
-            </p>
-            <p className="flex items-center gap-2">
-              <Instagram className="w-3.5 h-3.5 text-pink-400" />
-              <span>Instagram: <strong className="text-white">{siteSettings.footerInstagram}</strong></span>
-            </p>
+          <div className="space-y-2 text-xs text-neutral-300 font-mono pt-1">
+            {/* Clickable WhatsApp Redirect */}
+            <a
+              href={siteSettings.footerWhatsappUrl || 'https://wa.me/916000149919'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-white transition-colors"
+            >
+              <Phone className="w-4 h-4 text-emerald-400" />
+              <span>WhatsApp: <strong className="text-white underline">{siteSettings.footerPhone}</strong></span>
+            </a>
+
+            {/* Clickable Instagram Redirect */}
+            <a
+              href={siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:text-white transition-colors"
+            >
+              <Instagram className="w-4 h-4 text-pink-400" />
+              <span>Instagram: <strong className="text-white underline">{siteSettings.footerInstagram}</strong></span>
+            </a>
           </div>
 
           {/* Newsletter Box */}
@@ -152,7 +165,7 @@ export const Footer: React.FC = () => {
       {/* Bottom Rights & Security */}
       <div className="border-t border-neutral-800 py-6 px-4 sm:px-6 lg:px-8 bg-black">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
-          <p suppressHydrationWarning>{siteSettings.footerCopyright}</p>
+          <p suppressHydrationWarning>{siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.'}</p>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1 text-neutral-400">
               <Lock className="w-3.5 h-3.5 text-emerald-400" /> 256-Bit SSL Encrypted Payment

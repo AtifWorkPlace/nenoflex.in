@@ -82,7 +82,7 @@ export interface Product {
   description: string;
   authenticitySeal: boolean;
   sanitized: boolean;
-  image: string; // Primary image (URL or uploaded file Data URL)
+  image: string; // Primary image
   imageHover?: string; // 2nd image for hover preview
   gallery: string[];
   isNewArrival: boolean;
@@ -139,10 +139,13 @@ export interface SiteSettings {
   heroSubtitle: string;
   heroCtaText: string;
   heroSecondaryCtaText: string;
+  heroTickerText: string; // e.g. 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||'
   footerTagline: string;
   footerPhone: string;
+  footerWhatsappUrl: string; // Redirect link for WhatsApp
   footerInstagram: string;
-  footerCopyright: string;
+  footerInstagramUrl: string; // Redirect link for Instagram
+  footerCopyright: string; // Default: '© 2022 NenoFlex Official. All rights reserved.'
   collectionBoxOrder: string[];
   notificationSound: 'cash-register' | 'luxury-bell' | 'ping' | 'alert';
   customCategories: string[];

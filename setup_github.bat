@@ -7,7 +7,7 @@ git init
 git branch -M main
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
-git commit -m "Upgrade to Next.js 15.2.9 non-deprecated patched release - NenoFlex Official Web (nenoflex.in)"
+git commit -m "Nodemailer email dispatch to flexnagaon@gmail.com & Screenshot 2 design alignment - NenoFlex Official Web (nenoflex.in)"
 git checkout -b dev
 git checkout main
 git push -u origin main
