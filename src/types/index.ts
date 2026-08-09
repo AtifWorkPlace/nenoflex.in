@@ -108,9 +108,9 @@ export interface Order {
   discount: number;
   shippingFee: number;
   total: number;
-  status: 'Placed' | 'Authenticated' | 'Quality Checked' | 'Shipped' | 'Out for Delivery' | 'Delivered';
-  trackingCode: string;
-  courier: string;
+  status: 'Pending Payment' | 'Placed' | 'Authenticated' | 'Quality Checked' | 'Shipped' | 'Out for Delivery' | 'Delivered';
+  trackingCode?: string | null;
+  courier?: string | null;
   shippingAddress: {
     fullName: string;
     email: string;
@@ -120,7 +120,7 @@ export interface Order {
     state: string;
     pincode: string;
   };
-  paymentMethod: 'QR Pre-Paid' | 'UPI' | 'Razorpay' | 'Stripe' | 'Card' | 'COD';
+  paymentMethod: 'QR Pre-Paid' | 'UPI' | 'Razorpay' | 'Stripe' | 'Card' | 'COD' | string;
   paymentId?: string;
   createdAt: string;
   estimatedDelivery: string;
@@ -147,18 +147,18 @@ export interface SiteSettings {
   heroTickerText: string;
 
   // 3 Bento Poster Banners (New Arrivals, Jackets, Jerseys)
-  heroPosterBg1?: string; // Background image or color for Poster 1 (New Arrivals)
-  heroPosterTag1?: string; // e.g. "New Drops 🔥"
-  heroPosterTitle1?: string; // e.g. "NEW ARRIVAL"
-  heroPosterSubtitle1?: string; // e.g. "www.nenoflex.in"
+  heroPosterBg1?: string;
+  heroPosterTag1?: string;
+  heroPosterTitle1?: string;
+  heroPosterSubtitle1?: string;
   heroPosterLink1?: string;
 
-  heroPosterImage2?: string; // Poster 2 Image URL (Jackets)
-  heroPosterTitle2?: string; // e.g. "Jackets / Windcheaters"
+  heroPosterImage2?: string;
+  heroPosterTitle2?: string;
   heroPosterLink2?: string;
 
-  heroPosterImage3?: string; // Poster 3 Image URL (Jerseys)
-  heroPosterTitle3?: string; // e.g. "New Drops Jerseys 🔥 🚀"
+  heroPosterImage3?: string;
+  heroPosterTitle3?: string;
   heroPosterLink3?: string;
 
   footerTagline: string;

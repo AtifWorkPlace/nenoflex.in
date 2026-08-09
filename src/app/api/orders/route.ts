@@ -1,19 +1,44 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { Order, CartItem, Product } from '@/types';
 import { SupabaseServerService } from '@/lib/supabase-server';
 
-interface ServerCouponRule {
-  code: string;
-  discountPercent: number;
-  minOrderValue: number;
-  maxDiscount: number;
-  isActive: boolean;
-}
+function validateOrderInput(payload: any): { valid: boolean; error?: string } {
+  if (!payload || typeof payload !== 'object') return { valid: false, error: 'Invalid order JSON payload' };
 
-const SERVER_COUPON_RULES: Record<string, ServerCouponRule> = {
-  'FLEX10': { code: 'FLEX10', discountPercent: 10, minOrderValue: 499, maxDiscount: 500, isActive: true },
-  'THRIFT90': { code: 'THRIFT90', discountPercent: 15, minOrderValue: 799, maxDiscount: 1000, isActive: true },
-};
+  const { items, shippingAddress } = payload;
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { valid: false, error: 'Order must contain at least one valid item' };
+  }
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') return { valid: false, error: 'Invalid item format in cart' };
+    const pId = item.productId || item.product?.id;
+    const qty = Number(item.quantity);
+    if (!pId || typeof pId !== 'string') return { valid: false, error: 'Invalid product ID' };
+    if (!qty || isNaN(qty) || !Number.isInteger(qty) || qty <= 0 || qty > 10) {
+      return { valid: false, error: 'Quantity must be a positive integer between 1 and 10' };
+    }
+  }
+
+  if (!shippingAddress || typeof shippingAddress !== 'object') {
+    return { valid: false, error: 'Missing shipping address details' };
+  }
+
+  if (!shippingAddress.fullName || typeof shippingAddress.fullName !== 'string' || shippingAddress.fullName.trim().length === 0) {
+    return { valid: false, error: 'Full name is required' };
+  }
+
+  if (!shippingAddress.email || typeof shippingAddress.email !== 'string' || !shippingAddress.email.includes('@')) {
+    return { valid: false, error: 'Valid email address is required' };
+  }
+
+  if (!shippingAddress.address || typeof shippingAddress.address !== 'string' || shippingAddress.address.trim().length === 0) {
+    return { valid: false, error: 'Shipping street address is required' };
+  }
+
+  return { valid: true };
+}
 
 export async function GET() {
   try {
@@ -27,45 +52,31 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const payload = await req.json();
+
+    // 1. Strict Input Schema Validation
+    const val = validateOrderInput(payload);
+    if (!val.valid) {
+      return NextResponse.json({ success: false, message: val.error }, { status: 400 });
+    }
+
     const { items, shippingAddress, paymentMethod, couponCode } = payload;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { success: false, message: 'Order must contain at least one item' },
-        { status: 400 }
-      );
-    }
-
-    if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.email || !shippingAddress.address) {
-      return NextResponse.json(
-        { success: false, message: 'Complete shipping address is required' },
-        { status: 400 }
-      );
-    }
-
-    // 1. Fetch Authoritative Products from Supabase DB
+    // 2. Fetch Authoritative Products from Supabase DB
     const authoritativeProducts = await SupabaseServerService.fetchProducts();
 
     let serverSubtotal = 0;
     const validatedItems: CartItem[] = [];
 
-    // 2. Validate Stock & Perform Server-Side Price Calculation
+    // Validate product existence and calculate authoritative server price
     for (const item of items) {
       const pId = item.productId || item.product?.id;
-      const requestedQty = Number(item.quantity || 1);
+      const requestedQty = Number(item.quantity);
       const selectedSize = item.selectedSize || 'M';
-
-      if (!pId) {
-        return NextResponse.json(
-          { success: false, message: 'Invalid product item format' },
-          { status: 400 }
-        );
-      }
 
       const dbProduct = authoritativeProducts.find(p => p.id === pId);
       if (!dbProduct) {
         return NextResponse.json(
-          { success: false, message: `Product ID "${pId}" no longer exists in catalog` },
+          { success: false, message: `Product ID "${pId}" no longer exists in production catalog` },
           { status: 400 }
         );
       }
@@ -74,55 +85,78 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             success: false,
-            message: `Insufficient stock for "${dbProduct.name}". Only ${dbProduct.stockCount} left in stock.`,
+            message: `Insufficient stock for "${dbProduct.name}". Only ${dbProduct.stockCount} remaining.`,
             availableStock: dbProduct.stockCount,
           },
           { status: 400 }
         );
       }
 
-      // Calculate line total using authoritative DB price ONLY
       const lineTotal = dbProduct.price * requestedQty;
       serverSubtotal += lineTotal;
 
       validatedItems.push({
         product: dbProduct,
-        selectedSize,
+        selectedSize: String(selectedSize),
         quantity: requestedQty,
       });
     }
 
-    // 3. Server-Side Coupon Validation
+    // 3. Database Coupon Validation & Limits Check
     let serverDiscount = 0;
     if (couponCode && typeof couponCode === 'string') {
-      const cleanCode = couponCode.trim().toUpperCase();
-      const rule = SERVER_COUPON_RULES[cleanCode];
-
-      if (rule && rule.isActive) {
-        if (serverSubtotal >= rule.minOrderValue) {
-          const rawDiscount = Math.round((serverSubtotal * rule.discountPercent) / 100);
-          serverDiscount = Math.min(rawDiscount, rule.maxDiscount);
+      const dbCoupon = await SupabaseServerService.fetchCoupon(couponCode);
+      if (dbCoupon && dbCoupon.isActive) {
+        if (!dbCoupon.expiresAt || new Date(dbCoupon.expiresAt).getTime() > Date.now()) {
+          if (dbCoupon.usedCount < dbCoupon.usageLimit) {
+            if (serverSubtotal >= dbCoupon.minOrderValue) {
+              if (dbCoupon.discountType === 'percentage') {
+                const rawDiscount = Math.round((serverSubtotal * dbCoupon.discountValue) / 100);
+                serverDiscount = Math.min(rawDiscount, dbCoupon.maxDiscount);
+              } else {
+                serverDiscount = Math.min(dbCoupon.discountValue, dbCoupon.maxDiscount);
+              }
+            }
+          }
         }
       }
     }
 
     // 4. Server-Side Shipping & Total Calculation
     const serverShippingFee = serverSubtotal > 999 ? 0 : 80;
-    const serverTotal = serverSubtotal - serverDiscount + serverShippingFee;
+    const serverTotal = Math.max(0, serverSubtotal - serverDiscount + serverShippingFee);
 
-    // 5. Decrement Stock in Database Atomically
+    // 5. Transactional Atomic Stock Reservation with Automatic Rollback
+    const successfulDecrements: Array<{ productId: string; quantity: number }> = [];
+    let transactionFailed = false;
+    let failureMessage = '';
+
     for (const item of validatedItems) {
-      const res = await SupabaseServerService.decrementProductStock(item.product.id, item.quantity);
-      if (!res.success) {
-        return NextResponse.json(
-          { success: false, message: `Failed to secure stock for "${item.product.name}"` },
-          { status: 400 }
-        );
+      const res = await SupabaseServerService.decrementStockAtomic(item.product.id, item.quantity);
+      if (res.success) {
+        successfulDecrements.push({ productId: item.product.id, quantity: item.quantity });
+      } else {
+        transactionFailed = true;
+        failureMessage = `Stock reservation failed for item "${item.product.name}"`;
+        break;
       }
     }
 
-    // 6. Build Authoritative Order Record
-    const orderId = `U0YJ${Math.floor(1000 + Math.random() * 9000)}P`;
+    // ROLLBACK EVERYTHING IF ANY ITEM FAILS
+    if (transactionFailed) {
+      console.warn('[Transaction Rollback]: Undoing stock decrements:', successfulDecrements);
+      for (const dec of successfulDecrements) {
+        await SupabaseServerService.rollbackStock(dec.productId, dec.quantity);
+      }
+
+      return NextResponse.json(
+        { success: false, message: failureMessage || 'Order transaction aborted due to stock concurrency conflict' },
+        { status: 400 }
+      );
+    }
+
+    // 6. Build Authoritative Order Record (Guaranteed Unique ID & Real Courier Fields)
+    const orderId = `NF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const authoritativeOrder: Order = {
       id: orderId,
       items: validatedItems,
@@ -130,17 +164,17 @@ export async function POST(req: Request) {
       discount: serverDiscount,
       shippingFee: serverShippingFee,
       total: serverTotal,
-      status: 'Placed',
-      trackingCode: `NF-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-      courier: 'BlueDart Express Air',
+      status: 'Pending Payment',
+      trackingCode: undefined, // Real courier tracking code assigned upon shipment
+      courier: undefined,      // Real courier assigned upon dispatch
       shippingAddress: {
-        fullName: String(shippingAddress.fullName),
-        email: String(shippingAddress.email),
-        phone: String(shippingAddress.phone || ''),
-        address: String(shippingAddress.address),
-        city: String(shippingAddress.city || 'Nagaon'),
-        state: String(shippingAddress.state || 'Assam'),
-        pincode: String(shippingAddress.pincode || '782001'),
+        fullName: String(shippingAddress.fullName).trim(),
+        email: String(shippingAddress.email).trim().toLowerCase(),
+        phone: String(shippingAddress.phone || '').trim(),
+        address: String(shippingAddress.address).trim(),
+        city: String(shippingAddress.city || 'Nagaon').trim(),
+        state: String(shippingAddress.state || 'Assam').trim(),
+        pincode: String(shippingAddress.pincode || '782001').trim(),
       },
       paymentMethod: paymentMethod || 'Prepaid',
       createdAt: new Date().toISOString(),
@@ -150,7 +184,7 @@ export async function POST(req: Request) {
     // 7. Persist to Supabase Cloud Orders
     await SupabaseServerService.saveOrder(authoritativeOrder);
 
-    // 8. Log Order Audit Action
+    // 8. Log Security Audit Action
     await SupabaseServerService.saveAuditLog({
       id: `audit-${Date.now()}`,
       action: 'PLACE_ORDER',
@@ -164,12 +198,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Order created & verified successfully',
+      message: 'Order created & transaction verified successfully',
       order: authoritativeOrder,
     });
   } catch (error: any) {
+    console.error('[Order API Exception]:', error);
     return NextResponse.json(
-      { success: false, message: 'Server error processing order placement' },
+      { success: false, message: 'Server error processing order transaction' },
       { status: 500 }
     );
   }
