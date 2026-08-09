@@ -29,7 +29,8 @@ import {
   Sparkles,
   ArrowUp,
   ArrowDown,
-  Link as LinkIcon
+  Link as LinkIcon,
+  LayoutGrid
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
@@ -47,6 +48,7 @@ export default function EnterpriseAdminDashboard() {
     auditLogs,
     adminLogout,
     updateSiteSettings,
+    reorderCollectionBoxes,
     addCoupon,
     deleteCoupon,
     playAdminChime,
@@ -204,7 +206,7 @@ export default function EnterpriseAdminDashboard() {
       if (posterIndex === 1) setPosterBg1(compressed);
       else if (posterIndex === 2) setPosterImg2(compressed);
       else if (posterIndex === 3) setPosterImg3(compressed);
-      showToast(`Poster ${posterIndex} Image uploaded from device! Click "Save All Banners" to publish live.`);
+      showToast(`Poster ${posterIndex} Image uploaded! Click "Save All Layout & Image Customizer" to publish live.`);
     };
     reader.readAsDataURL(file);
   };
@@ -402,6 +404,35 @@ export default function EnterpriseAdminDashboard() {
     }
   };
 
+  // Re-align Homepage Showcase Sections
+  const currentSections = siteSettings.collectionBoxOrder || ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'];
+
+  const getSectionName = (secId: string) => {
+    switch (secId) {
+      case 'bento-banner':
+        return 'New Arrivals (Bento 3 Poster Banners)';
+      case 'jerseys':
+        return 'New Drops Jerseys 🔥 🚀 Section';
+      case 'jackets-fleeces':
+        return 'Vintage Fleeces & Vault Grails (Jackets)';
+      case 'brands':
+        return 'Handpicked Vault Brands Showcase';
+      default:
+        return secId;
+    }
+  };
+
+  const moveSection = (index: number, direction: 'up' | 'down') => {
+    const list = [...currentSections];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[index];
+    list[index] = list[targetIdx];
+    list[targetIdx] = temp;
+    reorderCollectionBoxes(list);
+  };
+
+  // Footer Links Re-align
   const currentFooterLinks = siteSettings.footerQuickLinks || [];
 
   const moveFooterLink = (index: number, direction: 'up' | 'down') => {
@@ -426,13 +457,13 @@ export default function EnterpriseAdminDashboard() {
               ROLE: {userRole.toUpperCase()} (101% CONTROL)
             </span>
             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
-              <RefreshCw className="w-3 h-3 animate-spin" /> SUPABASE POSTGRESQL + DISK PERSISTENCE ACTIVE
+              <RefreshCw className="w-3 h-3 animate-spin" /> SUPABASE REAL-TIME GLOBAL EDGE SYNC ACTIVE
             </span>
           </div>
           <h1 className="luxury-heading text-2xl sm:text-3xl font-bold text-white mt-2">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">Upload poster images directly from device, customize footer links live in 0.03s.</p>
+          <p className="text-xs text-neutral-400">Re-align homepage sections & footer links live, upload poster photos from device.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -464,7 +495,7 @@ export default function EnterpriseAdminDashboard() {
           { id: 'font', label: '3. Device Font Customizer', icon: Type },
           { id: 'promo', label: '4. Promo Pop-up Banner', icon: Eye },
           { id: 'sound', label: '5. Order Sound Chime', icon: Volume2 },
-          { id: 'banner', label: '6. Banners, Posters & Footer Links Customizer', icon: Settings },
+          { id: 'banner', label: '6. Sections Layout, Poster Photos & Footer Customizer', icon: Settings },
           { id: 'coupons', label: `7. Coupons (${coupons.length})`, icon: Tag },
           { id: 'orders', label: `8. Orders (${orders.length})`, icon: TrendingUp },
           { id: 'audit', label: `9. Audit Logs (${auditLogs.length})`, icon: FileText },
@@ -928,17 +959,65 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 6: HOMEPAGE POSTERS, BANNERS & FOOTER QUICK LINKS CUSTOMIZER */}
+      {/* TAB 6: UNIFIED HOMEPAGE SECTIONS & FOOTER QUICK LINKS MANAGER */}
       {activeTab === 'banner' && (
         <div className="space-y-8 font-sans">
-          {/* Section 1: Homepage Hero 3 Bento Poster Banners (Device File Upload Enabled) */}
+          {/* Section 1: Homepage Showcase Sections Re-aligning Manager (New Arrivals, Jackets, Jerseys, Brands) */}
           <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-white font-mono uppercase text-amber-400 flex items-center gap-2">
-                <Sparkles className="w-5 h-5" /> Homepage Hero 3 Poster Banners & New Arrivals Image Customizer
+                <LayoutGrid className="w-5 h-5" /> Homepage Showcase Sections Manager (Re-align with [ ↑ ] & [ ↓ ])
               </h2>
               <p className="text-xs text-neutral-400 mt-1">
-                Upload images directly from your phone/PC gallery (<strong className="text-white">0.03s instant refresh</strong>) for Poster 1 (New Arrivals), Poster 2 (Jackets / Windcheaters), and Poster 3 (New Drops Jerseys 🔥 🚀).
+                Re-align the order of all homepage sections (<strong className="text-white">New Arrivals, Jackets / Windcheaters, New Drops Jerseys 🔥 🚀, Vault Brands</strong>) using <strong className="text-amber-400">[ ↑ Move Up ]</strong> and <strong className="text-amber-400">[ ↓ Move Down ]</strong>. Updates live globally in 0.03s!
+              </p>
+            </div>
+
+            <div className="space-y-3 max-w-3xl">
+              {currentSections.map((secId, idx) => (
+                <div
+                  key={secId}
+                  className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-between gap-4 font-mono text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-7 h-7 rounded-full bg-amber-500 text-black flex items-center justify-center text-xs font-bold">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <span className="font-bold text-white text-sm">{getSectionName(secId)}</span>
+                      <span className="text-[10px] text-neutral-500 block font-mono">ID: {secId}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => moveSection(idx, 'up')}
+                      disabled={idx === 0}
+                      className="px-3 py-1.5 rounded-xl bg-black hover:bg-neutral-800 text-amber-400 border border-neutral-700 disabled:opacity-30 cursor-pointer flex items-center gap-1 font-bold"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" /> Move Up
+                    </button>
+                    <button
+                      onClick={() => moveSection(idx, 'down')}
+                      disabled={idx === currentSections.length - 1}
+                      className="px-3 py-1.5 rounded-xl bg-black hover:bg-neutral-800 text-amber-400 border border-neutral-700 disabled:opacity-30 cursor-pointer flex items-center gap-1 font-bold"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" /> Move Down
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: 3 Bento Poster Banners Image & Title Customizer */}
+          <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white font-mono uppercase text-emerald-400 flex items-center gap-2">
+                <Sparkles className="w-5 h-5" /> Bento Poster Banners & New Arrivals Image Customizer
+              </h2>
+              <p className="text-xs text-neutral-400 mt-1">
+                Upload photos directly from your phone/PC gallery (<strong className="text-white">0.03s instant refresh</strong>) for Poster 1 (New Arrivals), Poster 2 (Jackets / Windcheaters), and Poster 3 (New Drops Jerseys 🔥 🚀).
               </p>
             </div>
 
@@ -981,7 +1060,7 @@ export default function EnterpriseAdminDashboard() {
                     <label className="block text-neutral-400 font-mono mb-1">Background Image (Upload From Device)</label>
                     <div className="space-y-2">
                       <label className="cursor-pointer w-full py-2.5 px-3 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg hover:bg-neutral-200">
-                        <Upload className="w-4 h-4" /> Upload Poster 1 Photo from Device 📁
+                        <Upload className="w-4 h-4" /> Upload Poster 1 Photo 📁
                         <input
                           type="file"
                           accept="image/*"
@@ -1019,7 +1098,7 @@ export default function EnterpriseAdminDashboard() {
                     <label className="block text-neutral-400 font-mono mb-1">Poster Photo (Upload From Device)</label>
                     <div className="space-y-2">
                       <label className="cursor-pointer w-full py-2.5 px-3 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg hover:bg-neutral-200">
-                        <Upload className="w-4 h-4" /> Upload Poster 2 Photo from Device 📁
+                        <Upload className="w-4 h-4" /> Upload Poster 2 Photo 📁
                         <input
                           type="file"
                           accept="image/*"
@@ -1066,7 +1145,7 @@ export default function EnterpriseAdminDashboard() {
                     <label className="block text-neutral-400 font-mono mb-1">Poster Photo (Upload From Device)</label>
                     <div className="space-y-2">
                       <label className="cursor-pointer w-full py-2.5 px-3 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg hover:bg-neutral-200">
-                        <Upload className="w-4 h-4" /> Upload Poster 3 Photo from Device 📁
+                        <Upload className="w-4 h-4" /> Upload Poster 3 Photo 📁
                         <input
                           type="file"
                           accept="image/*"
@@ -1177,12 +1256,12 @@ export default function EnterpriseAdminDashboard() {
                 type="submit"
                 className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer shadow-lg"
               >
-                Save All Banners, Posters & Social Redirects Live Globally (0.03s Edge Refresh)
+                Save All Layout & Image Customizer Live Globally (0.03s Edge Sync)
               </button>
             </form>
           </div>
 
-          {/* Section 2: Footer Quick Links List Re-align & Customizer */}
+          {/* Section 3: Footer Quick Links List Re-align & Customizer */}
           <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-white font-mono uppercase text-emerald-400 flex items-center gap-2">

@@ -248,7 +248,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Fast Edge-First Product & Settings Fetch (<30ms load time)
+  // Fast Edge-First Product & Settings Fetch + Real-Time Global Polling (2.5s)
   useEffect(() => {
     const fetchFastProductsAndSettings = async () => {
       try {
@@ -275,6 +275,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     fetchFastProductsAndSettings();
+    const interval = setInterval(fetchFastProductsAndSettings, 2500);
+    return () => clearInterval(interval);
   }, []);
 
   // Cross-Device Order Synchronization Polling
@@ -442,7 +444,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('REORDER_HOMEPAGE_BOXES', 'admin@nenoflex.com', userRole, 'Homepage Layout', `Reordered homepage collection boxes: ${newOrder.join(', ')}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast('Homepage box order updated!');
+    showToast('Homepage box order updated globally!');
   };
 
   const addCoupon = (c: Coupon) => {

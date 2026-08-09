@@ -221,12 +221,21 @@ export async function GET() {
   if (supabaseProds) saveProductsToDisk(supabaseProds);
   if (supabaseSettings) saveSettingsToDisk(supabaseSettings);
 
-  return NextResponse.json({
-    success: true,
-    products,
-    siteSettings,
-    source: supabaseProds ? 'supabase_cloud' : 'disk_memory'
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      products,
+      siteSettings,
+      source: supabaseProds ? 'supabase_cloud' : 'disk_memory',
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    }
+  );
 }
 
 export async function POST(req: Request) {
@@ -237,14 +246,14 @@ export async function POST(req: Request) {
 
     if (action === 'save_settings' && siteSettings) {
       saveSettingsToDisk(siteSettings);
-      syncSettingsToSupabaseCloud(siteSettings);
+      await syncSettingsToSupabaseCloud(siteSettings);
       return NextResponse.json({ success: true, message: 'Site settings saved to Supabase Cloud globally', siteSettings });
     }
 
     if (action === 'set_all' && Array.isArray(products)) {
       currentStore = products.map(normalizeProductFromDb);
       saveProductsToDisk(currentStore);
-      syncCatalogToSupabaseCloud(currentStore);
+      await syncCatalogToSupabaseCloud(currentStore);
       return NextResponse.json({ success: true, message: 'Catalog saved to Supabase Cloud', products: currentStore });
     }
 
@@ -252,7 +261,7 @@ export async function POST(req: Request) {
       const cleanProd = normalizeProductFromDb(product);
       currentStore = [cleanProd, ...currentStore.filter(p => p.id !== cleanProd.id)];
       saveProductsToDisk(currentStore);
-      syncCatalogToSupabaseCloud(currentStore);
+      await syncCatalogToSupabaseCloud(currentStore);
       return NextResponse.json({ success: true, message: 'Product saved to Supabase Cloud', products: currentStore });
     }
 
@@ -260,14 +269,14 @@ export async function POST(req: Request) {
       const cleanProd = normalizeProductFromDb(product);
       currentStore = currentStore.map(p => p.id === cleanProd.id ? cleanProd : p);
       saveProductsToDisk(currentStore);
-      syncCatalogToSupabaseCloud(currentStore);
+      await syncCatalogToSupabaseCloud(currentStore);
       return NextResponse.json({ success: true, message: 'Product updated on Supabase Cloud', products: currentStore });
     }
 
     if (action === 'delete' && product?.id) {
       currentStore = currentStore.filter(p => p.id !== product.id);
       saveProductsToDisk(currentStore);
-      syncCatalogToSupabaseCloud(currentStore);
+      await syncCatalogToSupabaseCloud(currentStore);
       return NextResponse.json({ success: true, message: 'Product deleted from Supabase Cloud', products: currentStore });
     }
 
