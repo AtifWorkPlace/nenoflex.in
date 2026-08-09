@@ -42,6 +42,9 @@ export default function EnterpriseAdminDashboard() {
   const {
     products,
     orders,
+    isLoadingOrders,
+    ordersError,
+    refreshOrders,
     coupons,
     siteSettings,
     isAdmin,
@@ -1617,51 +1620,162 @@ export default function EnterpriseAdminDashboard() {
       )}
 
       {/* TAB 8: CROSS-DEVICE ORDERS LOG */}
+      {/* TAB 8: CROSS-DEVICE ORDERS LOG */}
       {activeTab === 'orders' && (
-        <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white font-mono uppercase">
-              Cross-Device Cloud Orders Log ({orders.length})
-            </h2>
+        <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-white font-mono uppercase">
+                  Live Supabase Orders Log ({orders.length})
+                </h2>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> REALTIME INSTANT SYNC
+                </span>
+              </div>
+              <p className="text-neutral-400 text-xs font-mono mt-1">
+                Authoritative orders fetched directly from Supabase Cloud `public.orders`
+              </p>
+            </div>
             <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
-                PHONE & PC LIVE SYNC: flexnagaon@gmail.com
-              </span>
+              <button
+                onClick={() => refreshOrders()}
+                disabled={isLoadingOrders}
+                className="px-3.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-white text-xs font-mono flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isLoadingOrders ? 'animate-spin' : ''}`} /> Refresh
+              </button>
               <button
                 onClick={() => sendTestEmail(smtpPassSecret)}
-                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-mono flex items-center gap-1 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-mono flex items-center gap-1.5 cursor-pointer transition-all"
               >
                 <Mail className="w-3.5 h-3.5" /> Test Mailer
               </button>
             </div>
           </div>
 
-          <div className="space-y-3">
-            {orders.map(o => (
-              <div key={o.id} className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono">
-                <div>
-                  <span className="font-bold text-white text-sm">{o.id}</span>
-                  <p className="text-neutral-400">{o.shippingAddress.fullName} • {o.shippingAddress.email} ({o.shippingAddress.phone})</p>
-                  <p className="text-emerald-400">₹{o.total} via {o.paymentMethod}</p>
+          {/* Loading Skeleton State */}
+          {isLoadingOrders && orders.length === 0 && (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 animate-pulse space-y-3">
+                  <div className="h-4 bg-neutral-800 rounded w-1/4"></div>
+                  <div className="h-3 bg-neutral-800 rounded w-1/2"></div>
+                  <div className="h-3 bg-neutral-800 rounded w-1/3"></div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-neutral-400 font-mono">Status:</span>
-                  <select
-                    value={o.status}
-                    onChange={e => updateOrderStatus(o.id, e.target.value as any)}
-                    className="px-3 py-1.5 rounded-full bg-black border border-neutral-700 text-xs text-white cursor-pointer"
-                  >
-                    <option value="Placed">Placed</option>
-                    <option value="Authenticated">Authenticated</option>
-                    <option value="Quality Checked">Quality Checked</option>
-                    <option value="Shipped">Shipped</option>
-                    <option value="Out for Delivery">Out for Delivery</option>
-                    <option value="Delivered">Delivered</option>
-                  </select>
+              ))}
+            </div>
+          )}
+
+          {/* Error Banner State */}
+          {ordersError && (
+            <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-mono text-xs text-rose-300">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-rose-200 uppercase">Orders Sync Error</p>
+                  <p className="text-rose-300/80 mt-0.5">{ordersError}</p>
                 </div>
               </div>
-            ))}
-          </div>
+              <button
+                onClick={() => refreshOrders()}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-black font-bold uppercase text-[11px] shrink-0 transition-colors cursor-pointer"
+              >
+                Retry Orders Sync
+              </button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoadingOrders && !ordersError && orders.length === 0 && (
+            <div className="p-16 rounded-2xl bg-neutral-950 border border-neutral-900 text-center space-y-3 font-mono">
+              <Package className="w-10 h-10 text-neutral-600 mx-auto" />
+              <h3 className="text-base font-bold text-white uppercase">No Orders Recorded Yet</h3>
+              <p className="text-neutral-500 text-xs max-w-md mx-auto">
+                Customer checkouts on www.nenoflex.in will be saved to Supabase Cloud and deliver here instantly via Realtime.
+              </p>
+              <button
+                onClick={() => refreshOrders()}
+                className="mt-2 px-5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase border border-white/20 transition-all cursor-pointer"
+              >
+                Check For New Orders
+              </button>
+            </div>
+          )}
+
+          {/* Orders List */}
+          {orders.length > 0 && (
+            <div className="space-y-4">
+              {orders.map(o => (
+                <div key={o.id} className="p-5 rounded-2xl bg-neutral-900/90 border border-neutral-800 space-y-4 font-mono text-xs hover:border-neutral-700 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-white text-sm bg-neutral-800 px-2.5 py-1 rounded-lg border border-neutral-700">{o.id}</span>
+                      <span className="text-neutral-400 text-[11px]">
+                        Placed: {new Date(o.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-neutral-400 text-[11px]">Status:</span>
+                      <select
+                        value={o.status}
+                        onChange={e => updateOrderStatus(o.id, e.target.value as any)}
+                        className="px-3 py-1.5 rounded-xl bg-black border border-neutral-700 text-xs text-emerald-400 font-bold cursor-pointer focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="Placed">Placed</option>
+                        <option value="Pending Payment">Pending Payment</option>
+                        <option value="Authenticated">Authenticated</option>
+                        <option value="Quality Checked">Quality Checked</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                    {/* Customer Info */}
+                    <div className="space-y-1 bg-black/40 p-3 rounded-xl border border-neutral-800/50">
+                      <span className="text-[10px] uppercase text-neutral-500 font-bold block mb-1">Customer Details</span>
+                      <p className="font-bold text-white">{o.shippingAddress?.fullName || 'Customer'}</p>
+                      <p className="text-neutral-400">{o.shippingAddress?.email}</p>
+                      <p className="text-neutral-400">{o.shippingAddress?.phone}</p>
+                    </div>
+
+                    {/* Shipping Address */}
+                    <div className="space-y-1 bg-black/40 p-3 rounded-xl border border-neutral-800/50">
+                      <span className="text-[10px] uppercase text-neutral-500 font-bold block mb-1">Shipping Address</span>
+                      <p className="text-neutral-300">{o.shippingAddress?.address}</p>
+                      <p className="text-neutral-400">{o.shippingAddress?.city}, {o.shippingAddress?.state} - {o.shippingAddress?.pincode}</p>
+                    </div>
+
+                    {/* Financial Summary */}
+                    <div className="space-y-1 bg-black/40 p-3 rounded-xl border border-neutral-800/50">
+                      <span className="text-[10px] uppercase text-neutral-500 font-bold block mb-1">Payment & Total</span>
+                      <p className="font-bold text-emerald-400 text-sm">₹{o.total} total</p>
+                      <p className="text-neutral-400">Method: {o.paymentMethod}</p>
+                      <p className="text-neutral-500 text-[10px]">
+                        Subtotal: ₹{o.subtotal} | Disc: ₹{o.discount} | Ship: ₹{o.shippingFee}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div className="bg-black/30 p-3 rounded-xl border border-neutral-800/50 space-y-2">
+                    <span className="text-[10px] uppercase text-neutral-500 font-bold block">Purchased Items ({o.items?.length || 0})</span>
+                    <div className="divide-y divide-neutral-800/60">
+                      {o.items?.map((item, idx) => (
+                        <div key={idx} className="py-1.5 flex items-center justify-between text-neutral-300 text-[11px]">
+                          <span className="font-medium text-white">{item.product?.name || 'Vault Product'} (Size: {item.selectedSize})</span>
+                          <span className="text-neutral-400">Qty: {item.quantity} × ₹{item.product?.price} = ₹{(item.product?.price || 0) * item.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

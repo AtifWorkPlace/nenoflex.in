@@ -155,8 +155,14 @@ CREATE POLICY "Service Role All Settings" ON public.site_settings FOR ALL USING 
 CREATE POLICY "Public Read Coupons" ON public.coupons FOR SELECT USING (is_active = true);
 CREATE POLICY "Service Role All Coupons" ON public.coupons FOR ALL USING (auth.role() = 'service_role');
 
--- Orders Policies: Service Role write/read (Customer requests via API endpoints only)
+-- Orders Policies: Service Role write/read + Anon insert (Customer placement)
 CREATE POLICY "Service Role All Orders" ON public.orders FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Anon Insert Orders" ON public.orders FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anon Select Orders" ON public.orders FOR SELECT USING (true);
 
 -- Audit Logs Policies: Service Role write/read
 CREATE POLICY "Service Role All Audit Logs" ON public.audit_logs FOR ALL USING (auth.role() = 'service_role');
+
+-- 8. ENABLE SUPABASE REALTIME PUBLICATION FOR ORDERS
+ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
+

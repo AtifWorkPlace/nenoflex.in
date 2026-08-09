@@ -5,7 +5,7 @@ import { Product, CartItem, Order, FilterState, Coupon, SiteSettings, UserRole, 
 import { INITIAL_PRODUCTS, BRANDS_LIST } from '@/data/products';
 import { SecuritySuite, AuditLog } from '@/lib/security';
 import { AudioNotificationEngine, NotificationSoundType } from '@/lib/audio';
-import { normalizeProductFromDb } from '@/lib/supabase';
+import { normalizeProductFromDb, normalizeOrderFromDb, getSupabaseBrowserClient } from '@/lib/supabase';
 
 interface StoreContextType {
   products: Product[];
@@ -18,6 +18,9 @@ interface StoreContextType {
   quickViewProduct: Product | null;
   setQuickViewProduct: (product: Product | null) => void;
   orders: Order[];
+  isLoadingOrders: boolean;
+  ordersError: string | null;
+  refreshOrders: (tokenOverride?: string | null) => Promise<void>;
   appliedCoupon: Coupon | null;
   coupons: Coupon[];
   siteSettings: SiteSettings;
@@ -49,11 +52,11 @@ interface StoreContextType {
   deleteFooterQuickLink: (index: number) => void;
   reorderFooterQuickLinks: (newLinks: FooterQuickLink[]) => void;
 
-  // Cart & Shopping Actions
+  // Customer Actions
   toggleWishlist: (productId: string) => void;
   addToCart: (product: Product, size: string, quantity?: number) => void;
   removeFromCart: (productId: string, size: string) => void;
-  updateCartQuantity: (productId: string, size: string, delta: number) => void;
+  updateCartQuantity: (productId: string, size: string, quantity: number) => void;
   clearCart: () => void;
   applyCoupon: (code: string) => { success: boolean; message: string };
   removeCoupon: () => void;
@@ -62,12 +65,12 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Promise<Order | null>;
 
-  // Product CRUD
-  addProduct: (product: Product) => Promise<void>;
-  updateProduct: (product: Product) => Promise<void>;
-  deleteProduct: (productId: string) => Promise<void>;
+  // Admin Mutations
+  addProduct: (p: Product) => Promise<void>;
+  updateProduct: (p: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   resetProductsToDefault: () => Promise<void>;
-  updateOrderStatus: (orderId: string, status: Order['status']) => void;
+  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<boolean>;
 
   // Toast System
   toastMessage: string | null;
@@ -81,7 +84,7 @@ const initialFilters: FilterState = {
   collection: 'All',
   brands: [],
   minPrice: 0,
-  maxPrice: 10000,
+  maxPrice: 20000,
   sizes: [],
   fits: [],
   minCondition: 0,
@@ -101,32 +104,48 @@ const DEFAULT_FOOTER_QUICK_LINKS: FooterQuickLink[] = [
 ];
 
 const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  announcementBanner: 'from showrooms 89%-90% off!!',
-  heroTitle: 'New Drops 🔥',
-  heroSubtitle: 'Handpicked Imported Vintage & Streetwear Vault',
+  announcementBanner: '⚡ SUMMERS DROP UP TO 90% OFF ON IMPORTED STREETWEAR ⚡',
+  heroTitle: 'flex',
+  heroSubtitle: 'NenoFlex Official Streetwear & Imported Vintage Vault. Authenticated & Sanitized.',
   heroCtaText: 'Shop now',
   heroSecondaryCtaText: 'Explore Vault',
   heroTickerText: 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||',
+
   heroPosterTag1: 'New Drops 🔥',
   heroPosterTitle1: 'NEW ARRIVAL',
   heroPosterSubtitle1: 'www.nenoflex.in',
   heroPosterLink1: '/shop?category=New Arrivals',
+  heroPosterBg1: '',
+
   heroPosterImage2: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
   heroPosterTitle2: 'Jackets / Windcheaters',
   heroPosterLink2: '/shop?category=Jackets',
+
   heroPosterImage3: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
   heroPosterTitle3: 'New Drops Jerseys 🔥 🚀',
   heroPosterLink3: '/shop?category=Jerseys',
-  footerTagline: 'Flex Your Style. Premium Handpicked Imported Vault.',
-  footerPhone: '+91 60001 49919',
-  footerWhatsappUrl: 'https://wa.me/916000149919',
-  footerInstagram: '@flexnagaon',
-  footerInstagramUrl: 'https://instagram.com/flexnagaon',
-  footerCopyright: '© 2022 NenoFlex Official. All rights reserved.',
+
+  footerTagline: 'Flex Your Style with Handpicked Imported Vault Grails.',
+  footerPhone: '+91 98765 43210',
+  footerWhatsappUrl: 'https://wa.me/919876543210',
+  footerInstagram: '@nenoflex.in',
+  footerInstagramUrl: 'https://instagram.com/nenoflex.in',
+  footerCopyright: '© 2026 NenoFlex Official. All rights reserved.',
   footerQuickLinks: DEFAULT_FOOTER_QUICK_LINKS,
   collectionBoxOrder: ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'],
   notificationSound: 'cash-register',
-  customCategories: ['Jerseys', 'Jackets', 'Sweatshirts', 'Hoodies', 'Windbreakers', 'Graphic Tees', 'Oversized T-Shirts', 'Cargo Pants', 'Jeans', 'Caps'],
+  customCategories: [
+    'Jerseys',
+    'Jackets',
+    'Sweatshirts',
+    'Hoodies',
+    'Windbreakers',
+    'Graphic Tees',
+    'Oversized T-Shirts',
+    'Cargo Pants',
+    'Jeans',
+    'Caps',
+  ],
   customBrands: BRANDS_LIST,
   customFontFamily: 'Inter',
   promoModal: {
@@ -192,6 +211,8 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
 
   // Persist transient cart state to localStorage
   useEffect(() => {
@@ -244,18 +265,91 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch Orders for Admin
-  const refreshOrders = async () => {
+  // Fetch Authoritative Orders for Admin (Requires Admin HMAC Auth Token)
+  const refreshOrders = async (tokenOverride?: string | null) => {
+    const activeToken = tokenOverride !== undefined ? tokenOverride : adminToken;
+    if (!activeToken && !isAdmin) return;
+
+    setIsLoadingOrders(true);
+    setOrdersError(null);
+
     try {
-      const res = await fetch('/api/orders');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.orders)) {
-          setOrders(data.orders);
-        }
+      const res = await fetch('/api/orders', {
+        headers: activeToken ? { 'Authorization': `Bearer ${activeToken}` } : {},
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success && Array.isArray(data.orders)) {
+        setOrders(data.orders);
+        setOrdersError(null);
+      } else {
+        const errMessage = data.message || `HTTP ${res.status}: Failed to fetch orders from server`;
+        console.error('[refreshOrders Error]:', errMessage);
+        setOrdersError(errMessage);
       }
-    } catch (e) {}
+    } catch (e: any) {
+      const connErr = e?.message || 'Network connection error while fetching orders';
+      console.error('[refreshOrders Exception]:', e);
+      setOrdersError(connErr);
+    } finally {
+      setIsLoadingOrders(false);
+    }
   };
+
+  // Supabase Realtime Subscription for Instant Admin Order Delivery
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const client = getSupabaseBrowserClient();
+    if (!client) {
+      console.warn('[Realtime Orders]: Client-side Supabase client unavailable');
+      return;
+    }
+
+    console.log('[Realtime Orders]: Subscribing to public.orders table...');
+
+    const channel = client
+      .channel('public-orders-realtime-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.log('[Realtime Order Event Received]:', payload.eventType, payload.new);
+
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newOrder = normalizeOrderFromDb(payload.new);
+            setOrders(prev => {
+              const exists = prev.some(o => o.id === newOrder.id);
+              if (exists) {
+                return prev.map(o => (o.id === newOrder.id ? newOrder : o));
+              }
+              return [newOrder, ...prev];
+            });
+
+            // Trigger notification chime & toast on confirmed database INSERT event
+            playAdminChime('cash-register');
+            showToast(`🔔 NEW ORDER RECEIVED: ${newOrder.id} (₹${newOrder.total})`);
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const updatedOrder = normalizeOrderFromDb(payload.new);
+            setOrders(prev =>
+              prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o))
+            );
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime Orders Subscription Status]:', status);
+      });
+
+    return () => {
+      console.log('[Realtime Orders]: Cleaning up channel subscription');
+      client.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   useEffect(() => {
     refreshOrders();
@@ -302,6 +396,7 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
         setIsAdmin(true);
         setUserRole(data.userRole || 'Admin');
         setAdminToken(data.token);
+        refreshOrders(data.token);
         showToast(`${data.userRole} Access Granted ⚡`);
         return true;
       } else {
@@ -318,6 +413,8 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
     setIsAdmin(false);
     setUserRole('Customer');
     setAdminToken(null);
+    setOrders([]);
+    setOrdersError(null);
     showToast('Logged out of Admin Mode');
   };
 
@@ -655,9 +752,30 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
     } catch (e) {}
   };
 
-  const updateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-    showToast(`Updated order ${orderId} to "${status}"`);
+  const updateOrderStatus = async (orderId: string, status: Order['status']): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({ orderId, status }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+        showToast(`Order ${orderId} updated to "${status}"`);
+        return true;
+      } else {
+        showToast(data.message || 'Failed to update order status');
+        return false;
+      }
+    } catch (e) {
+      showToast('Network error updating order status');
+      return false;
+    }
   };
 
   return (
@@ -673,6 +791,9 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
         quickViewProduct,
         setQuickViewProduct,
         orders,
+        isLoadingOrders,
+        ordersError,
+        refreshOrders,
         appliedCoupon,
         coupons,
         siteSettings,

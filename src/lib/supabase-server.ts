@@ -1,7 +1,7 @@
 import { Product, SiteSettings, Order } from '@/types';
 import { AuditLog } from '@/lib/security';
 import { INITIAL_PRODUCTS } from '@/data/products';
-import { normalizeProductFromDb } from '@/lib/supabase';
+import { normalizeProductFromDb, normalizeOrderFromDb } from '@/lib/supabase';
 import fs from 'fs';
 import path from 'path';
 
@@ -386,7 +386,7 @@ export const SupabaseServerService = {
     return false;
   },
 
-  // Fetch Authoritative Orders
+  // Fetch Authoritative Orders from Supabase Cloud
   fetchOrders: async (): Promise<Order[]> => {
     const apiKey = getPrivilegedKey();
     const supabaseUrl = getSupabaseUrl();
@@ -401,35 +401,49 @@ export const SupabaseServerService = {
         cache: 'no-store',
       });
 
-      if (!response.ok) return [];
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[Supabase fetchOrders Error]: operation: fetchOrders, status:', response.status, 'error:', errText);
+        throw new Error(`DATABASE_FETCH_FAILED: ${errText}`);
+      }
+
       const data = await response.json();
-      return data.map((item: any) => ({
-        id: item.id,
-        items: item.items || [],
-        subtotal: Number(item.subtotal),
-        discount: Number(item.discount),
-        shippingFee: Number(item.shipping_fee ?? item.shippingFee ?? 0),
-        total: Number(item.total),
-        status: item.status,
-        trackingCode: item.tracking_code || item.trackingCode || null,
-        courier: item.courier || null,
-        shippingAddress: item.shipping_address || item.shippingAddress,
-        paymentMethod: item.payment_method || item.paymentMethod,
-        createdAt: item.created_at || item.createdAt,
-        estimatedDelivery: item.created_at || item.createdAt,
-      }));
-    } catch (e) {
-      return [];
+      if (!Array.isArray(data)) return [];
+      return data.map(normalizeOrderFromDb);
+    } catch (e: any) {
+      console.error('[Supabase fetchOrders Exception]:', e?.message || e);
+      throw e;
     }
   },
 
   // Save Order to Supabase Cloud
-  saveOrder: async (order: Order): Promise<boolean> => {
+  saveOrder: async (order: Order): Promise<{ success: boolean; error?: string }> => {
     const apiKey = getPrivilegedKey();
     const supabaseUrl = getSupabaseUrl();
-    if (!supabaseUrl || !apiKey) return true;
+    if (!supabaseUrl || !apiKey) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[Supabase saveOrder Error]: SUPABASE_SERVICE_ROLE_KEY missing in production');
+        return { success: false, error: 'DATABASE_KEY_MISSING' };
+      }
+      return { success: true };
+    }
 
     try {
+      const payload = {
+        id: order.id,
+        subtotal: order.subtotal,
+        discount: order.discount,
+        shipping_fee: order.shippingFee,
+        total: order.total,
+        status: order.status,
+        tracking_code: order.trackingCode || null,
+        courier: order.courier || null,
+        shipping_address: order.shippingAddress,
+        payment_method: order.paymentMethod,
+        items: order.items,
+        created_at: order.createdAt,
+      };
+
       const response = await fetch(`${supabaseUrl}/rest/v1/orders`, {
         method: 'POST',
         headers: {
@@ -438,24 +452,50 @@ export const SupabaseServerService = {
           'Authorization': `Bearer ${apiKey}`,
           'Prefer': 'resolution=merge-duplicates',
         },
-        body: JSON.stringify({
-          id: order.id,
-          subtotal: order.subtotal,
-          discount: order.discount,
-          shipping_fee: order.shippingFee,
-          total: order.total,
-          status: order.status,
-          tracking_code: order.trackingCode || null,
-          courier: order.courier || null,
-          shipping_address: order.shippingAddress,
-          payment_method: order.paymentMethod,
-          items: order.items,
-          created_at: order.createdAt,
-        }),
+        body: JSON.stringify(payload),
       });
-      return response.ok;
-    } catch (e) {
-      return true;
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[Supabase saveOrder Error]: operation: saveOrder, status: ${response.status}, error: ${errText}`);
+        return { success: false, error: `HTTP ${response.status}: ${errText}` };
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      console.error('[Supabase saveOrder Exception]:', e?.message || e);
+      return { success: false, error: e?.message || 'Network exception saving order' };
+    }
+  },
+
+  // Update Order Status in Supabase Cloud
+  updateOrderStatus: async (orderId: string, status: string): Promise<{ success: boolean; error?: string }> => {
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) return { success: true };
+
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[Supabase updateOrderStatus Error]: operation: updateOrderStatus, status: ${response.status}, error: ${errText}`);
+        return { success: false, error: `HTTP ${response.status}: ${errText}` };
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      console.error('[Supabase updateOrderStatus Exception]:', e?.message || e);
+      return { success: false, error: e?.message || 'Network error updating order status' };
     }
   },
 

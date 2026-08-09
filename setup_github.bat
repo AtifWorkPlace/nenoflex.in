@@ -14,7 +14,7 @@ git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
 
 echo Committing changes...
-git commit -m "NenoFlex Production Update - SSR Hydration Fix, JWT Security, Concurrent API Fetch"
+git commit -m "NenoFlex Production Update - Fix Admin Orders Pipeline & Supabase Realtime Delivery"
 
 echo.
 echo Pushing to GitHub...

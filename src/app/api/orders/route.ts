@@ -40,12 +40,74 @@ function validateOrderInput(payload: any): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
-export async function GET() {
+import { ServerAuth } from '@/lib/auth';
+
+export async function GET(req: Request) {
+  // Enforce Cryptographic HMAC Admin Authentication
+  const auth = ServerAuth.verifyAdminRequest(req);
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { success: false, message: auth.error || 'Unauthorized admin access' },
+      { status: 401 }
+    );
+  }
+
   try {
     const orders = await SupabaseServerService.fetchOrders();
     return NextResponse.json({ success: true, orders });
-  } catch (e) {
-    return NextResponse.json({ success: false, message: 'Failed to fetch orders' }, { status: 500 });
+  } catch (e: any) {
+    console.error('[GET /api/orders Error]:', e);
+    return NextResponse.json(
+      { success: false, message: 'Failed to fetch authoritative orders from Supabase' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: Request) {
+  // Enforce Cryptographic HMAC Admin Authentication
+  const auth = ServerAuth.verifyAdminRequest(req);
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { success: false, message: auth.error || 'Unauthorized admin access' },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const { orderId, status } = await req.json();
+    if (!orderId || typeof orderId !== 'string' || !status || typeof status !== 'string') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid payload: orderId and status are required' },
+        { status: 400 }
+      );
+    }
+
+    const res = await SupabaseServerService.updateOrderStatus(orderId, status);
+    if (!res.success) {
+      return NextResponse.json(
+        { success: false, message: res.error || 'Failed to update order status in database' },
+        { status: 500 }
+      );
+    }
+
+    await SupabaseServerService.saveAuditLog({
+      id: `audit-${Date.now()}`,
+      action: 'UPDATE_ORDER_STATUS',
+      actorEmail: auth.session!.email,
+      actorRole: auth.session!.role,
+      targetResource: 'Orders Log',
+      details: `Updated order ${orderId} status to "${status}"`,
+      ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    });
+
+    return NextResponse.json({ success: true, message: 'Order status updated successfully' });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, message: error?.message || 'Server error updating order status' },
+      { status: 500 }
+    );
   }
 }
 
@@ -164,7 +226,7 @@ export async function POST(req: Request) {
       discount: serverDiscount,
       shippingFee: serverShippingFee,
       total: serverTotal,
-      status: 'Pending Payment',
+      status: 'Placed',
       trackingCode: undefined, // Real courier tracking code assigned upon shipment
       courier: undefined,      // Real courier assigned upon dispatch
       shippingAddress: {
@@ -182,7 +244,25 @@ export async function POST(req: Request) {
     };
 
     // 7. Persist to Supabase Cloud Orders
-    await SupabaseServerService.saveOrder(authoritativeOrder);
+    const saveResult = await SupabaseServerService.saveOrder(authoritativeOrder);
+
+    if (!saveResult.success) {
+      console.error('[Order Placement FAILED]: Supabase saveOrder returned error:', saveResult.error);
+
+      // ROLLBACK STOCK DECREMENTS IF DATABASE INSERT FAILED
+      for (const dec of successfulDecrements) {
+        await SupabaseServerService.rollbackStock(dec.productId, dec.quantity);
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Order creation failed to persist in production database. Stock has been restored.',
+          error: saveResult.error,
+        },
+        { status: 500 }
+      );
+    }
 
     // 8. Log Security Audit Action
     await SupabaseServerService.saveAuditLog({
