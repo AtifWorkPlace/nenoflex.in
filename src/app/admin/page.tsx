@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Package,
@@ -30,7 +30,8 @@ import {
   ArrowUp,
   ArrowDown,
   Link as LinkIcon,
-  LayoutGrid
+  LayoutGrid,
+  ShieldCheck
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
@@ -53,6 +54,7 @@ export default function EnterpriseAdminDashboard() {
     deleteCoupon,
     playAdminChime,
     sendTestEmail,
+    forceLockAndSaveAllToCloud,
     addCategory,
     deleteCategory,
     addBrand,
@@ -134,6 +136,33 @@ export default function EnterpriseAdminDashboard() {
   // Product Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Sync local form state with siteSettings whenever siteSettings updates from store
+  useEffect(() => {
+    setBannerText(siteSettings.announcementBanner);
+    setHeroTitleText(siteSettings.heroTitle);
+    setHeroSubText(siteSettings.heroSubtitle);
+    setHeroCtaText(siteSettings.heroCtaText || 'Shop now');
+    setHeroTickerText(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
+    setPosterTag1(siteSettings.heroPosterTag1 || 'New Drops 🔥');
+    setPosterTitle1(siteSettings.heroPosterTitle1 || 'NEW ARRIVAL');
+    setPosterSub1(siteSettings.heroPosterSubtitle1 || 'www.nenoflex.in');
+    setPosterLink1(siteSettings.heroPosterLink1 || '/shop?category=New Arrivals');
+    setPosterBg1(siteSettings.heroPosterBg1 || '');
+    setPosterImg2(siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80');
+    setPosterTitle2(siteSettings.heroPosterTitle2 || 'Jackets / Windcheaters');
+    setPosterLink2(siteSettings.heroPosterLink2 || '/shop?category=Jackets');
+    setPosterImg3(siteSettings.heroPosterImage3 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80');
+    setPosterTitle3(siteSettings.heroPosterTitle3 || 'New Drops Jerseys 🔥 🚀');
+    setPosterLink3(siteSettings.heroPosterLink3 || '/shop?category=Jerseys');
+    setFooterTagline(siteSettings.footerTagline);
+    setFooterPhone(siteSettings.footerPhone);
+    setFooterWhatsappUrl(siteSettings.footerWhatsappUrl || 'https://wa.me/916000149919');
+    setFooterInstagram(siteSettings.footerInstagram);
+    setFooterInstagramUrl(siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon');
+    setFooterCopyright(siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.');
+    setFontFamilyName(siteSettings.customFontFamily || 'Inter');
+  }, [siteSettings]);
 
   const getCleanProductTemplate = (): Partial<Product> => ({
     sku: `SKU-NF-${Math.floor(100 + Math.random() * 900)}`,
@@ -457,7 +486,7 @@ export default function EnterpriseAdminDashboard() {
               ROLE: {userRole.toUpperCase()} (101% CONTROL)
             </span>
             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
-              <RefreshCw className="w-3 h-3 animate-spin" /> SUPABASE REAL-TIME GLOBAL EDGE SYNC ACTIVE
+              <ShieldCheck className="w-3 h-3 text-emerald-400" /> PERMANENT LOCALSTORAGE & SUPABASE CLOUD LOCK ACTIVE
             </span>
           </div>
           <h1 className="luxury-heading text-2xl sm:text-3xl font-bold text-white mt-2">
@@ -466,7 +495,14 @@ export default function EnterpriseAdminDashboard() {
           <p className="text-xs text-neutral-400">Re-align homepage sections & footer links live, upload poster photos from device.</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={forceLockAndSaveAllToCloud}
+            className="px-5 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase transition-all flex items-center gap-2 shadow-lg cursor-pointer font-mono"
+            title="Lock and save all products, settings, and poster images to cloud"
+          >
+            <Lock className="w-4 h-4" /> LOCK & SYNC ALL DATA TO CLOUD
+          </button>
           <button
             onClick={() => {
               setEditingProduct(null);

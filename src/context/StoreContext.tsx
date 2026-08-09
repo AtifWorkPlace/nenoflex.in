@@ -34,6 +34,7 @@ interface StoreContextType {
   deleteCoupon: (code: string) => void;
   playAdminChime: (type?: NotificationSoundType) => void;
   sendTestEmail: (smtpPassSecret?: string) => Promise<void>;
+  forceLockAndSaveAllToCloud: () => Promise<void>;
 
   // Catalog Customization Actions
   addCategory: (name: string) => void;
@@ -215,6 +216,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (e) {}
   };
 
+  const forceLockAndSaveAllToCloud = async () => {
+    saveProductsLocal(products);
+    saveSiteSettingsLocalAndCloud(siteSettings);
+
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save_settings', siteSettings }),
+      });
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_all', products }),
+      });
+    } catch (e) {}
+
+    showToast('✓ Locked & Saved All Data to LocalStorage + Cloud!');
+  };
+
   // Cross-tab real-time product & settings update listener
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -248,35 +269,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Fast Edge-First Product & Settings Fetch + Real-Time Global Polling (2.5s)
+  // Hydrate initial state once on mount from server without destructive periodic overwrites
   useEffect(() => {
-    const fetchFastProductsAndSettings = async () => {
+    const hydrateInitialState = async () => {
       try {
         const res = await fetch('/api/products', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data.success) {
-            if (Array.isArray(data.products) && data.products.length > 0) {
+            // Only populate products if localStorage is empty
+            const localProds = localStorage.getItem('nenoflex_products');
+            if (!localProds && Array.isArray(data.products) && data.products.length > 0) {
               const normalized = data.products.map(normalizeProductFromDb);
               setProducts(normalized);
               try {
                 localStorage.setItem('nenoflex_products', JSON.stringify(normalized));
               } catch (e) {}
             }
+
+            // Merge site settings safely without wiping local customizations
             if (data.siteSettings && typeof data.siteSettings === 'object') {
-              setSiteSettings(prev => ({ ...prev, ...data.siteSettings }));
-              try {
-                localStorage.setItem('nenoflex_site_settings', JSON.stringify(data.siteSettings));
-              } catch (e) {}
+              const localSettingsStr = localStorage.getItem('nenoflex_site_settings');
+              if (!localSettingsStr) {
+                setSiteSettings(prev => ({ ...prev, ...data.siteSettings }));
+                try {
+                  localStorage.setItem('nenoflex_site_settings', JSON.stringify(data.siteSettings));
+                } catch (e) {}
+              }
             }
           }
         }
       } catch (e) {}
     };
 
-    fetchFastProductsAndSettings();
-    const interval = setInterval(fetchFastProductsAndSettings, 2500);
-    return () => clearInterval(interval);
+    hydrateInitialState();
   }, []);
 
   // Cross-Device Order Synchronization Polling
@@ -702,6 +728,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteCoupon,
         playAdminChime,
         sendTestEmail,
+        forceLockAndSaveAllToCloud,
         addCategory,
         deleteCategory,
         addBrand,
