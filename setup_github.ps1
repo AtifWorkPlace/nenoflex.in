@@ -1,18 +1,16 @@
 # NenoFlex GitHub Repository Initializer & Push Script
 Write-Host "===================================================" -ForegroundColor Cyan
-Write-Host "    NenoFlex GitHub Repository Initializer & Push" -ForegroundColor Cyan
+Write-Host "    NenoFlex Official Web - Push Updates to GitHub" -ForegroundColor Cyan
 Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host ""
 
 git init
 git branch -M main
+git remote remove origin 2>$null
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
-git commit -m "Global Supabase Secret Key Write Privileges for World-Wide Deployment on Vercel - NenoFlex Official Web (nenoflex.in)"
-git checkout -b dev
-git checkout main
+git commit -m "NenoFlex Production Release - Supabase Cloud DB & Nike PDP Upgrade"
 git push -u origin main
-git push -u origin dev
 
 Write-Host ""
 Write-Host "===================================================" -ForegroundColor Green

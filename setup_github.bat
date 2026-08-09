@@ -1,17 +1,15 @@
 @echo off
 echo ===================================================
-echo     NenoFlex GitHub Repository Initializer & Push
+echo     NenoFlex Official Web - Push Updates to GitHub
 echo ===================================================
 echo.
 git init
 git branch -M main
+git remote remove origin 2>nul
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
-git commit -m "Global Supabase Secret Key Write Privileges for World-Wide Deployment on Vercel - NenoFlex Official Web (nenoflex.in)"
-git checkout -b dev
-git checkout main
+git commit -m "NenoFlex Production Release - Supabase Cloud DB & Nike PDP Upgrade"
 git push -u origin main
-git push -u origin dev
 echo.
 echo ===================================================
 echo     Successfully pushed NenoFlex to GitHub!
