@@ -269,40 +269,55 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Hydrate initial state once on mount from server without destructive periodic overwrites
+  // Instant Edge & Supabase Cloud Hydration for ALL customer devices (iPhone, Android, PC, Safari, Chrome)
   useEffect(() => {
-    const hydrateInitialState = async () => {
+    const fetchFastProductsAndSettings = async () => {
+      let cloudProducts: Product[] | null = null;
+      let cloudSettings: SiteSettings | null = null;
+
       try {
         const res = await fetch('/api/products', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data.success) {
-            // Only populate products if localStorage is empty
-            const localProds = localStorage.getItem('nenoflex_products');
-            if (!localProds && Array.isArray(data.products) && data.products.length > 0) {
-              const normalized = data.products.map(normalizeProductFromDb);
-              setProducts(normalized);
-              try {
-                localStorage.setItem('nenoflex_products', JSON.stringify(normalized));
-              } catch (e) {}
+            if (Array.isArray(data.products) && data.products.length > 0) {
+              cloudProducts = data.products.map(normalizeProductFromDb);
             }
-
-            // Merge site settings safely without wiping local customizations
             if (data.siteSettings && typeof data.siteSettings === 'object') {
-              const localSettingsStr = localStorage.getItem('nenoflex_site_settings');
-              if (!localSettingsStr) {
-                setSiteSettings(prev => ({ ...prev, ...data.siteSettings }));
-                try {
-                  localStorage.setItem('nenoflex_site_settings', JSON.stringify(data.siteSettings));
-                } catch (e) {}
-              }
+              cloudSettings = data.siteSettings;
             }
           }
         }
       } catch (e) {}
+
+      // Fallback direct Supabase REST fetch if Vercel API returned empty
+      if (!cloudProducts || cloudProducts.length === 0) {
+        try {
+          const supabaseData = await SupabaseService.fetchProducts();
+          if (supabaseData && supabaseData.length > 0) {
+            cloudProducts = supabaseData.map(normalizeProductFromDb);
+          }
+        } catch (e) {}
+      }
+
+      // Update state and localStorage whenever cloud products exist
+      if (cloudProducts && cloudProducts.length > 0) {
+        setProducts(cloudProducts);
+        try {
+          localStorage.setItem('nenoflex_products', JSON.stringify(cloudProducts));
+        } catch (e) {}
+      }
+
+      // Update siteSettings whenever cloud settings exist
+      if (cloudSettings) {
+        setSiteSettings(prev => ({ ...prev, ...cloudSettings }));
+        try {
+          localStorage.setItem('nenoflex_site_settings', JSON.stringify(cloudSettings));
+        } catch (e) {}
+      }
     };
 
-    hydrateInitialState();
+    fetchFastProductsAndSettings();
   }, []);
 
   // Cross-Device Order Synchronization Polling
