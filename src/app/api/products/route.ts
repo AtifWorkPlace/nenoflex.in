@@ -10,38 +10,56 @@ const DB_FILE = path.join(process.cwd(), 'products_db.json');
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mrrtmrjqlzhajopevnpo.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
-// Global Edge memory cache
-let globalEdgeProductsStore: Product[] | null = null;
+// Global edge memory cache
+let globalInMemoryCatalog: Product[] | null = null;
 
 function loadProductsFromDisk(): Product[] {
-  if (globalEdgeProductsStore && globalEdgeProductsStore.length > 0) {
-    return globalEdgeProductsStore;
+  if (globalInMemoryCatalog && globalInMemoryCatalog.length > 0) {
+    return globalInMemoryCatalog;
   }
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        globalEdgeProductsStore = parsed;
-        return parsed;
+        globalInMemoryCatalog = parsed.map(normalizeProductFromDb);
+        return globalInMemoryCatalog;
       }
     }
   } catch (err) {}
-  return globalEdgeProductsStore && globalEdgeProductsStore.length > 0 ? globalEdgeProductsStore : INITIAL_PRODUCTS;
+  return INITIAL_PRODUCTS;
 }
 
 function saveProductsToDisk(products: Product[]) {
-  globalEdgeProductsStore = products;
+  globalInMemoryCatalog = products;
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(products, null, 2), 'utf-8');
   } catch (err) {}
 }
 
-// Global Supabase Database Writer
-async function syncProductsWithSupabase(products: Product[]) {
+// Write catalog to Supabase Cloud Storage (site_settings + products table)
+async function syncCatalogToSupabaseCloud(products: Product[]) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
 
-  // 1. Post to Supabase 'products' table (PostgreSQL snake_case)
+  // 1. Save full JSON catalog to Supabase 'site_settings' key-value container (Fail-safe!)
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        id: 'global_products_catalog',
+        catalog_data: products,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {}
+
+  // 2. Save individual rows to Supabase 'products' table
   try {
     const formattedRows = products.map(p => ({
       id: p.id,
@@ -88,31 +106,13 @@ async function syncProductsWithSupabase(products: Product[]) {
       body: JSON.stringify(formattedRows),
     });
   } catch (e) {}
-
-  // 2. Post full JSON catalog to Supabase 'site_settings' key-value container
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/site_settings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Prefer': 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({
-        id: 'global_products_catalog',
-        catalog_data: products,
-        updated_at: new Date().toISOString(),
-      }),
-    });
-  } catch (e) {}
 }
 
-// Global Supabase Database Reader
-async function fetchProductsFromSupabase(): Promise<Product[] | null> {
+// Read live catalog from Supabase Cloud
+async function fetchCatalogFromSupabaseCloud(): Promise<Product[] | null> {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
 
-  // 1. Try Supabase 'site_settings' global catalog container first (exact JSON camelCase array!)
+  // 1. Try Supabase 'site_settings' key-value container (Fail-safe primary!)
   try {
     const resSettings = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.global_products_catalog&select=*`, {
       headers: {
@@ -150,24 +150,22 @@ async function fetchProductsFromSupabase(): Promise<Product[] | null> {
 }
 
 export async function GET() {
-  // First attempt to fetch live cloud catalog from Supabase Database
-  const supabaseProds = await fetchProductsFromSupabase();
+  const supabaseProds = await fetchCatalogFromSupabaseCloud();
   if (supabaseProds && supabaseProds.length > 0) {
-    globalEdgeProductsStore = supabaseProds;
+    globalInMemoryCatalog = supabaseProds;
     saveProductsToDisk(supabaseProds);
     return NextResponse.json({
       success: true,
       products: supabaseProds,
-      source: 'supabase_cloud_global'
+      source: 'supabase_cloud'
     });
   }
 
-  // Fallback to edge memory / disk
   const diskProds = loadProductsFromDisk();
   return NextResponse.json({
     success: true,
     products: diskProds,
-    source: 'edge_memory'
+    source: 'disk_memory'
   });
 }
 
@@ -178,35 +176,33 @@ export async function POST(req: Request) {
     let currentStore = loadProductsFromDisk();
 
     if (action === 'set_all' && Array.isArray(products)) {
-      currentStore = products;
-      globalEdgeProductsStore = currentStore;
+      currentStore = products.map(normalizeProductFromDb);
       saveProductsToDisk(currentStore);
-      syncProductsWithSupabase(currentStore);
-      return NextResponse.json({ success: true, message: 'Catalog saved to Supabase Cloud globally', products: currentStore });
+      syncCatalogToSupabaseCloud(currentStore);
+      return NextResponse.json({ success: true, message: 'Catalog saved to Supabase Cloud', products: currentStore });
     }
 
     if (action === 'add' && product) {
-      currentStore = [product, ...currentStore.filter(p => p.id !== product.id)];
-      globalEdgeProductsStore = currentStore;
+      const cleanProd = normalizeProductFromDb(product);
+      currentStore = [cleanProd, ...currentStore.filter(p => p.id !== cleanProd.id)];
       saveProductsToDisk(currentStore);
-      syncProductsWithSupabase(currentStore);
-      return NextResponse.json({ success: true, message: 'Product saved to Supabase Cloud globally', products: currentStore });
+      syncCatalogToSupabaseCloud(currentStore);
+      return NextResponse.json({ success: true, message: 'Product saved to Supabase Cloud', products: currentStore });
     }
 
     if (action === 'update' && product) {
-      currentStore = currentStore.map(p => p.id === product.id ? product : p);
-      globalEdgeProductsStore = currentStore;
+      const cleanProd = normalizeProductFromDb(product);
+      currentStore = currentStore.map(p => p.id === cleanProd.id ? cleanProd : p);
       saveProductsToDisk(currentStore);
-      syncProductsWithSupabase(currentStore);
-      return NextResponse.json({ success: true, message: 'Product updated on Supabase Cloud globally', products: currentStore });
+      syncCatalogToSupabaseCloud(currentStore);
+      return NextResponse.json({ success: true, message: 'Product updated on Supabase Cloud', products: currentStore });
     }
 
     if (action === 'delete' && product?.id) {
       currentStore = currentStore.filter(p => p.id !== product.id);
-      globalEdgeProductsStore = currentStore;
       saveProductsToDisk(currentStore);
-      syncProductsWithSupabase(currentStore);
-      return NextResponse.json({ success: true, message: 'Product deleted from Supabase Cloud globally', products: currentStore });
+      syncCatalogToSupabaseCloud(currentStore);
+      return NextResponse.json({ success: true, message: 'Product deleted from Supabase Cloud', products: currentStore });
     }
 
     return NextResponse.json({ success: false, message: 'Invalid action' }, { status: 400 });
