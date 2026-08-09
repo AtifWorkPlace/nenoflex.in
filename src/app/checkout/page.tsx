@@ -2,26 +2,26 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ShieldCheck, Lock, CheckCircle2, ArrowRight, Tag, Mail, MapPin } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Order } from '@/types';
+import { Mail } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const { cart, appliedCoupon, applyCoupon, removeCoupon, placeOrder, showToast } = useStore();
+  const { cart, appliedCoupon, applyCoupon, placeOrder } = useStore();
 
   const [formData, setFormData] = useState({
-    fullName: 'Atif',
-    lastName: 'Flexngn',
-    email: '6000149918@fam',
-    phone: '+91 60001 49918',
-    address: 'Lakhra Road',
-    apartment: 'Suite 4B',
-    city: 'Guwahati',
+    email: '',
+    fullName: '',
+    lastName: '',
+    address: '',
+    apartment: '',
+    city: 'Nagaon',
     state: 'Assam',
-    pincode: '781001',
+    pincode: '782001',
+    phone: '',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<Order['paymentMethod']>('QR Pre-Paid');
+  const [paymentMethod, setPaymentMethod] = useState<'QR Pre-Paid' | 'UPI' | 'COD'>('QR Pre-Paid');
   const [discountInput, setDiscountInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
@@ -35,38 +35,35 @@ export default function CheckoutPage() {
 
   const handleApplyDiscount = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!discountInput) return;
-    const res = applyCoupon(discountInput);
-    if (res.success) setDiscountInput('');
+    if (discountInput) {
+      applyCoupon(discountInput);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0) {
-      showToast('Your cart is empty!');
-      return;
-    }
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const newOrder = placeOrder({
-        shippingAddress: {
-          fullName: `${formData.fullName} ${formData.lastName}`.trim(),
-          email: formData.email,
-          phone: formData.phone,
-          address: `${formData.address}, ${formData.apartment}`,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
-        },
-        paymentMethod,
-      });
-      setIsSubmitting(false);
+    const newOrder = await placeOrder({
+      shippingAddress: {
+        fullName: `${formData.fullName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        phone: formData.phone,
+        address: `${formData.address}, ${formData.apartment}`,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+      },
+      paymentMethod,
+    });
+
+    setIsSubmitting(false);
+    if (newOrder) {
       setCompletedOrder(newOrder);
-    }, 1000);
+    }
   };
 
-  // ORDER CONFIRMATION SCREEN (Matching Screenshot 2)
+  // ORDER CONFIRMATION SCREEN
   if (completedOrder) {
     return (
       <div className="min-h-screen bg-white text-black font-sans">
@@ -89,7 +86,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Map Snippet Preview Box matching screenshot */}
+            {/* Map Snippet Preview Box */}
             <div className="rounded-xl border border-neutral-300 overflow-hidden bg-neutral-100 relative">
               <img
                 src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1000&q=80"
@@ -104,7 +101,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* "Your order is confirmed" UPI/QR Instructions Box matching screenshot */}
+            {/* "Your order is confirmed" UPI/QR Instructions Box */}
             <div className="p-6 rounded-xl border border-neutral-300 bg-white space-y-3 text-xs leading-relaxed text-neutral-700">
               <h3 className="font-bold text-sm text-black">Your order is confirmed</h3>
               <ol className="list-decimal pl-4 space-y-2 text-neutral-800">
@@ -183,7 +180,7 @@ export default function CheckoutPage() {
     );
   }
 
-  // CHECKOUT FORM SCREEN (Matching Screenshot 1)
+  // CHECKOUT FORM SCREEN
   return (
     <div className="min-h-screen bg-white text-black font-sans">
       {/* Top Header */}
@@ -286,7 +283,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Payment Section matching Screenshot 1 */}
+          {/* Payment Section */}
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-black">Payment</h2>
             <p className="text-xs text-neutral-500">All transactions are secure and encrypted.</p>
@@ -321,11 +318,11 @@ export default function CheckoutPage() {
             disabled={isSubmitting || cart.length === 0}
             className="w-full py-4 rounded-lg bg-black text-white font-bold text-sm uppercase tracking-wider hover:bg-neutral-800 transition-colors disabled:opacity-50"
           >
-            {isSubmitting ? 'Processing...' : 'Complete Order'}
+            {isSubmitting ? 'Processing Order...' : 'Complete Order'}
           </button>
         </div>
 
-        {/* Right Summary Column (5 Cols) (Matching Screenshot 1) */}
+        {/* Right Summary Column (5 Cols) */}
         <div className="lg:col-span-5 bg-neutral-50 p-6 rounded-xl border border-neutral-200 space-y-6">
           {/* Cart item summary */}
           <div className="space-y-4">
@@ -347,7 +344,7 @@ export default function CheckoutPage() {
             ))}
           </div>
 
-          {/* Discount code box matching screenshot */}
+          {/* Discount code box */}
           <div className="flex gap-2">
             <input
               type="text"

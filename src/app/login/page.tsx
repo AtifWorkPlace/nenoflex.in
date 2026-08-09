@@ -14,18 +14,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
     // Admin login check
-    if (email.trim().toLowerCase() === 'admin@nenoflex.com') {
-      const success = adminLogin(email, password);
+    if (email.trim().toLowerCase().includes('admin@nenoflex.com')) {
+      const success = await adminLogin(email, password);
       if (success) {
         router.push('/admin');
         return;
       } else {
-        setErrorMsg('Invalid Admin credentials! Password should be admin123');
+        setErrorMsg('Invalid Admin credentials! Password should be admin123 or superadmin123');
         return;
       }
     }

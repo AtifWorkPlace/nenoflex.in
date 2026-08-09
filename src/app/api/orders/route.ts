@@ -1,103 +1,176 @@
 import { NextResponse } from 'next/server';
-import { Order } from '@/types';
-import { SupabaseService } from '@/lib/supabase';
+import { Order, CartItem, Product } from '@/types';
+import { SupabaseServerService } from '@/lib/supabase-server';
 
-// Global In-Memory Cloud Order Store for instant cross-device sync
-let globalCloudOrders: Order[] = [
-  {
-    id: 'U0YJEFD9P',
-    items: [
-      {
-        product: {
-          id: 'nf-001',
-          sku: 'SKU-FILA-PUFFER-GOLD',
-          barcode: '8901234567890',
-          name: 'FILA Classic Black Puffer Vest - Gold Trim Y2K Streetwear Sleeveless Jacket',
-          brand: 'FILA',
-          category: 'Jackets',
-          collection: ['Vintage Collection', 'Streetwear Collection'],
-          price: 349,
-          showroomPrice: 3499,
-          discountPercent: 90,
-          conditionScore: 9.8,
-          conditionGrade: 'Mint (9.8-10)',
-          sizes: ['M', 'L', 'XL'],
-          colors: ['Black', 'Gold'],
-          material: 'Polyester Puffer Fleece',
-          fit: 'Boxy Fit',
-          description: 'Gold trim Y2K streetwear sleeveless puffer jacket.',
-          authenticitySeal: true,
-          sanitized: true,
-          image: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
-          gallery: [],
-          isNewArrival: true,
-          isTrending: true,
-          isBestSeller: true,
-          isLimited: true,
-          stockCount: 5,
-          rating: 5.0,
-          reviewsCount: 18,
-          tags: ['fila', 'jacket', 'puffer', 'y2k'],
-        },
-        selectedSize: 'L',
-        quantity: 1,
-      },
-    ],
-    subtotal: 349,
-    discount: 0,
-    shippingFee: 80,
-    total: 429,
-    status: 'Placed',
-    trackingCode: 'NF-6000149918',
-    courier: 'BlueDart Express Air',
-    shippingAddress: {
-      fullName: 'Atif',
-      email: 'flexnagaon@gmail.com',
-      phone: '+91 60001 49919',
-      address: 'Guwahati AS',
-      city: 'Guwahati',
-      state: 'Assam',
-      pincode: '781001',
-    },
-    paymentMethod: 'QR Pre-Paid',
-    createdAt: new Date().toISOString(),
-    estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  },
-];
+interface ServerCouponRule {
+  code: string;
+  discountPercent: number;
+  minOrderValue: number;
+  maxDiscount: number;
+  isActive: boolean;
+}
+
+const SERVER_COUPON_RULES: Record<string, ServerCouponRule> = {
+  'FLEX10': { code: 'FLEX10', discountPercent: 10, minOrderValue: 499, maxDiscount: 500, isActive: true },
+  'THRIFT90': { code: 'THRIFT90', discountPercent: 15, minOrderValue: 799, maxDiscount: 1000, isActive: true },
+};
 
 export async function GET() {
   try {
-    // Try Supabase first if connected via Vercel env
-    const sbOrders = await SupabaseService.fetchOrders();
-    if (sbOrders && sbOrders.length > 0) {
-      return NextResponse.json({ success: true, orders: sbOrders });
-    }
+    const orders = await SupabaseServerService.fetchOrders();
+    return NextResponse.json({ success: true, orders });
   } catch (e) {
-    console.warn('Supabase fetch fallback to cloud memory:', e);
+    return NextResponse.json({ success: false, message: 'Failed to fetch orders' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, orders: globalCloudOrders });
 }
 
 export async function POST(req: Request) {
   try {
-    const newOrder: Order = await req.json();
-    if (!newOrder || !newOrder.id) {
-      return NextResponse.json({ success: false, message: 'Invalid order payload' }, { status: 400 });
+    const payload = await req.json();
+    const { items, shippingAddress, paymentMethod, couponCode } = payload;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Order must contain at least one item' },
+        { status: 400 }
+      );
     }
 
-    // Add to global Cloud orders
-    globalCloudOrders = [newOrder, ...globalCloudOrders.filter(o => o.id !== newOrder.id)];
+    if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.email || !shippingAddress.address) {
+      return NextResponse.json(
+        { success: false, message: 'Complete shipping address is required' },
+        { status: 400 }
+      );
+    }
 
-    // Persist to Supabase if connected
-    await SupabaseService.saveOrder(newOrder);
+    // 1. Fetch Authoritative Products from Supabase DB
+    const authoritativeProducts = await SupabaseServerService.fetchProducts();
+
+    let serverSubtotal = 0;
+    const validatedItems: CartItem[] = [];
+
+    // 2. Validate Stock & Perform Server-Side Price Calculation
+    for (const item of items) {
+      const pId = item.productId || item.product?.id;
+      const requestedQty = Number(item.quantity || 1);
+      const selectedSize = item.selectedSize || 'M';
+
+      if (!pId) {
+        return NextResponse.json(
+          { success: false, message: 'Invalid product item format' },
+          { status: 400 }
+        );
+      }
+
+      const dbProduct = authoritativeProducts.find(p => p.id === pId);
+      if (!dbProduct) {
+        return NextResponse.json(
+          { success: false, message: `Product ID "${pId}" no longer exists in catalog` },
+          { status: 400 }
+        );
+      }
+
+      if (dbProduct.stockCount < requestedQty) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Insufficient stock for "${dbProduct.name}". Only ${dbProduct.stockCount} left in stock.`,
+            availableStock: dbProduct.stockCount,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Calculate line total using authoritative DB price ONLY
+      const lineTotal = dbProduct.price * requestedQty;
+      serverSubtotal += lineTotal;
+
+      validatedItems.push({
+        product: dbProduct,
+        selectedSize,
+        quantity: requestedQty,
+      });
+    }
+
+    // 3. Server-Side Coupon Validation
+    let serverDiscount = 0;
+    if (couponCode && typeof couponCode === 'string') {
+      const cleanCode = couponCode.trim().toUpperCase();
+      const rule = SERVER_COUPON_RULES[cleanCode];
+
+      if (rule && rule.isActive) {
+        if (serverSubtotal >= rule.minOrderValue) {
+          const rawDiscount = Math.round((serverSubtotal * rule.discountPercent) / 100);
+          serverDiscount = Math.min(rawDiscount, rule.maxDiscount);
+        }
+      }
+    }
+
+    // 4. Server-Side Shipping & Total Calculation
+    const serverShippingFee = serverSubtotal > 999 ? 0 : 80;
+    const serverTotal = serverSubtotal - serverDiscount + serverShippingFee;
+
+    // 5. Decrement Stock in Database Atomically
+    for (const item of validatedItems) {
+      const res = await SupabaseServerService.decrementProductStock(item.product.id, item.quantity);
+      if (!res.success) {
+        return NextResponse.json(
+          { success: false, message: `Failed to secure stock for "${item.product.name}"` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 6. Build Authoritative Order Record
+    const orderId = `U0YJ${Math.floor(1000 + Math.random() * 9000)}P`;
+    const authoritativeOrder: Order = {
+      id: orderId,
+      items: validatedItems,
+      subtotal: serverSubtotal,
+      discount: serverDiscount,
+      shippingFee: serverShippingFee,
+      total: serverTotal,
+      status: 'Placed',
+      trackingCode: `NF-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+      courier: 'BlueDart Express Air',
+      shippingAddress: {
+        fullName: String(shippingAddress.fullName),
+        email: String(shippingAddress.email),
+        phone: String(shippingAddress.phone || ''),
+        address: String(shippingAddress.address),
+        city: String(shippingAddress.city || 'Nagaon'),
+        state: String(shippingAddress.state || 'Assam'),
+        pincode: String(shippingAddress.pincode || '782001'),
+      },
+      paymentMethod: paymentMethod || 'Prepaid',
+      createdAt: new Date().toISOString(),
+      estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    };
+
+    // 7. Persist to Supabase Cloud Orders
+    await SupabaseServerService.saveOrder(authoritativeOrder);
+
+    // 8. Log Order Audit Action
+    await SupabaseServerService.saveAuditLog({
+      id: `audit-${Date.now()}`,
+      action: 'PLACE_ORDER',
+      actorEmail: authoritativeOrder.shippingAddress.email,
+      actorRole: 'Customer',
+      targetResource: 'Order Engine',
+      details: `New order ${orderId} created for ₹${serverTotal} (Subtotal: ₹${serverSubtotal}, Discount: ₹${serverDiscount}, Shipping: ₹${serverShippingFee})`,
+      ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    });
 
     return NextResponse.json({
       success: true,
-      message: 'Order synced across all devices (PC, Phone, Tablet)',
-      orders: globalCloudOrders,
+      message: 'Order created & verified successfully',
+      order: authoritativeOrder,
     });
-  } catch (error) {
-    return NextResponse.json({ success: false, message: 'Failed to sync order' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, message: 'Server error processing order placement' },
+      { status: 500 }
+    );
   }
 }

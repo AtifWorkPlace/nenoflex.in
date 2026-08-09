@@ -5,7 +5,7 @@ import { Product, CartItem, Order, FilterState, Coupon, SiteSettings, UserRole, 
 import { INITIAL_PRODUCTS, BRANDS_LIST } from '@/data/products';
 import { SecuritySuite, AuditLog } from '@/lib/security';
 import { AudioNotificationEngine, NotificationSoundType } from '@/lib/audio';
-import { SupabaseService, normalizeProductFromDb } from '@/lib/supabase';
+import { normalizeProductFromDb } from '@/lib/supabase';
 
 interface StoreContextType {
   products: Product[];
@@ -24,12 +24,15 @@ interface StoreContextType {
   isAdmin: boolean;
   userRole: UserRole;
   auditLogs: AuditLog[];
+  adminToken: string | null;
+  isLoadingCatalog: boolean;
+  catalogError: string | null;
 
   // Authentication & Admin Actions
-  adminLogin: (email: string, pass: string) => boolean;
+  adminLogin: (email: string, pass: string) => Promise<boolean>;
   adminLogout: () => void;
-  updateSiteSettings: (settings: SiteSettings) => void;
-  reorderCollectionBoxes: (newOrder: string[]) => void;
+  updateSiteSettings: (settings: SiteSettings) => Promise<void>;
+  reorderCollectionBoxes: (newOrder: string[]) => Promise<void>;
   addCoupon: (coupon: Coupon) => void;
   deleteCoupon: (code: string) => void;
   playAdminChime: (type?: NotificationSoundType) => void;
@@ -57,18 +60,19 @@ interface StoreContextType {
   placeOrder: (details: {
     shippingAddress: Order['shippingAddress'];
     paymentMethod: Order['paymentMethod'];
-  }) => Order;
+  }) => Promise<Order | null>;
 
   // Product CRUD
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (productId: string) => void;
-  resetProductsToDefault: () => void;
+  addProduct: (product: Product) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
+  resetProductsToDefault: () => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
 
   // Toast System
   toastMessage: string | null;
   showToast: (msg: string) => void;
+  refreshCatalog: () => Promise<void>;
 }
 
 const initialFilters: FilterState = {
@@ -86,8 +90,6 @@ const initialFilters: FilterState = {
 };
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
-
-const DEFAULT_ORDERS: Order[] = [];
 
 const DEFAULT_FOOTER_QUICK_LINKS: FooterQuickLink[] = [
   { label: 'New Arrivals', href: '/shop?category=New Arrivals' },
@@ -137,46 +139,45 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   }
 };
 
-const getInitialProductsSync = (): Product[] => {
+const getInitialCartSync = (): CartItem[] => {
   if (typeof window === 'undefined') return [];
   try {
-    const saved = localStorage.getItem('nenoflex_products');
+    const saved = localStorage.getItem('nenoflex_cart');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(normalizeProductFromDb);
-      }
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
   return [];
 };
 
-const getInitialSettingsSync = (): SiteSettings => {
-  if (typeof window === 'undefined') return DEFAULT_SITE_SETTINGS;
+const getInitialWishlistSync = (): string[] => {
+  if (typeof window === 'undefined') return [];
   try {
-    const saved = localStorage.getItem('nenoflex_site_settings');
+    const saved = localStorage.getItem('nenoflex_wishlist');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_SITE_SETTINGS, ...parsed };
-      }
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
-  return DEFAULT_SITE_SETTINGS;
+  return [];
 };
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(getInitialProductsSync);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(getInitialSettingsSync);
-  const [wishlist, setWishlist] = useState<string[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [wishlist, setWishlist] = useState<string[]>(getInitialWishlistSync);
+  const [cart, setCart] = useState<CartItem[]>(getInitialCartSync);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>('Customer');
+  const [adminToken, setAdminToken] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   const [coupons, setCoupons] = useState<Coupon[]>([
     { code: 'FLEX10', discountPercent: 10 },
@@ -184,162 +185,71 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ]);
 
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
-  const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  // Synchronize products locally and broadcast event
-  const saveProductsLocal = (updatedProducts: Product[]) => {
-    setProducts(updatedProducts);
+  // Persist transient cart state to localStorage
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('nenoflex_products', JSON.stringify(updatedProducts));
-        window.dispatchEvent(new Event('nenoflex_products_updated'));
+        localStorage.setItem('nenoflex_cart', JSON.stringify(cart));
       } catch (e) {}
+    }
+  }, [cart]);
+
+  // Persist transient wishlist state to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('nenoflex_wishlist', JSON.stringify(wishlist));
+      } catch (e) {}
+    }
+  }, [wishlist]);
+
+  // Fetch Authoritative Catalog & Site Settings from Server API
+  const refreshCatalog = async () => {
+    setIsLoadingCatalog(true);
+    setCatalogError(null);
+    try {
+      const res = await fetch('/api/products', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (Array.isArray(data.products)) {
+            setProducts(data.products.map(normalizeProductFromDb));
+          }
+          if (data.siteSettings && typeof data.siteSettings === 'object') {
+            setSiteSettings(prev => ({ ...prev, ...data.siteSettings }));
+          }
+        }
+      } else {
+        setCatalogError('Failed to load live catalog from server');
+      }
+    } catch (e) {
+      setCatalogError('Network connection error while fetching catalog');
+    } finally {
+      setIsLoadingCatalog(false);
     }
   };
 
-  // Synchronize siteSettings locally & to Cloud
-  const saveSiteSettingsLocalAndCloud = (newSettings: SiteSettings) => {
-    setSiteSettings(newSettings);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('nenoflex_site_settings', JSON.stringify(newSettings));
-        window.dispatchEvent(new Event('nenoflex_settings_updated'));
-      } catch (e) {}
-    }
+  useEffect(() => {
+    refreshCatalog();
+  }, []);
 
+  // Fetch Orders for Admin
+  const refreshOrders = async () => {
     try {
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_settings', siteSettings: newSettings }),
-      }).catch(err => console.warn('API siteSettings sync error:', err));
+      const res = await fetch('/api/orders');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setOrders(data.orders);
+        }
+      }
     } catch (e) {}
   };
 
-  const forceLockAndSaveAllToCloud = async () => {
-    saveProductsLocal(products);
-    saveSiteSettingsLocalAndCloud(siteSettings);
-
-    try {
-      await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_settings', siteSettings }),
-      });
-      await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_all', products }),
-      });
-    } catch (e) {}
-
-    showToast('✓ Locked & Saved All Data to LocalStorage + Cloud!');
-  };
-
-  // Cross-tab real-time product & settings update listener
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleStorageOrCustomEvent = () => {
-      try {
-        const savedProds = localStorage.getItem('nenoflex_products');
-        if (savedProds) {
-          const parsed = JSON.parse(savedProds);
-          if (Array.isArray(parsed)) {
-            setProducts(parsed.map(normalizeProductFromDb));
-          }
-        }
-        const savedSettings = localStorage.getItem('nenoflex_site_settings');
-        if (savedSettings) {
-          const parsedS = JSON.parse(savedSettings);
-          if (parsedS && typeof parsedS === 'object') {
-            setSiteSettings(prev => ({ ...prev, ...parsedS }));
-          }
-        }
-      } catch (e) {}
-    };
-
-    window.addEventListener('storage', handleStorageOrCustomEvent);
-    window.addEventListener('nenoflex_products_updated', handleStorageOrCustomEvent);
-    window.addEventListener('nenoflex_settings_updated', handleStorageOrCustomEvent);
-    return () => {
-      window.removeEventListener('storage', handleStorageOrCustomEvent);
-      window.removeEventListener('nenoflex_products_updated', handleStorageOrCustomEvent);
-      window.removeEventListener('nenoflex_settings_updated', handleStorageOrCustomEvent);
-    };
-  }, []);
-
-  // Instant Edge & Supabase Cloud Hydration for ALL customer devices (iPhone, Android, PC, Safari, Chrome)
-  useEffect(() => {
-    const fetchFastProductsAndSettings = async () => {
-      let cloudProducts: Product[] | null = null;
-      let cloudSettings: SiteSettings | null = null;
-
-      try {
-        const res = await fetch('/api/products', { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            if (Array.isArray(data.products) && data.products.length > 0) {
-              cloudProducts = data.products.map(normalizeProductFromDb);
-            }
-            if (data.siteSettings && typeof data.siteSettings === 'object') {
-              cloudSettings = data.siteSettings;
-            }
-          }
-        }
-      } catch (e) {}
-
-      // Fallback direct Supabase REST fetch if Vercel API returned empty
-      if (!cloudProducts || cloudProducts.length === 0) {
-        try {
-          const supabaseData = await SupabaseService.fetchProducts();
-          if (supabaseData && supabaseData.length > 0) {
-            cloudProducts = supabaseData.map(normalizeProductFromDb);
-          }
-        } catch (e) {}
-      }
-
-      // Update state and localStorage whenever cloud products exist
-      if (cloudProducts && cloudProducts.length > 0) {
-        setProducts(cloudProducts);
-        try {
-          localStorage.setItem('nenoflex_products', JSON.stringify(cloudProducts));
-        } catch (e) {}
-      }
-
-      // Update siteSettings whenever cloud settings exist
-      if (cloudSettings) {
-        setSiteSettings(prev => ({ ...prev, ...cloudSettings }));
-        try {
-          localStorage.setItem('nenoflex_site_settings', JSON.stringify(cloudSettings));
-        } catch (e) {}
-      }
-    };
-
-    fetchFastProductsAndSettings();
-  }, []);
-
-  // Cross-Device Order Synchronization Polling
-  useEffect(() => {
-    const fetchCloudOrders = async () => {
-      try {
-        const res = await fetch('/api/orders');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.orders)) {
-            setOrders(data.orders);
-            try {
-              localStorage.setItem('nenoflex_orders', JSON.stringify(data.orders));
-            } catch (e) {}
-          }
-        }
-      } catch (err) {}
-    };
-
-    fetchCloudOrders();
-    const interval = setInterval(fetchCloudOrders, 5000);
-    return () => clearInterval(interval);
+    refreshOrders();
   }, []);
 
   const showToast = (msg: string) => {
@@ -369,39 +279,77 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const adminLogin = (email: string, pass: string): boolean => {
-    const cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail === 'superadmin@nenoflex.com' && pass === 'superadmin123') {
-      setIsAdmin(true);
-      setUserRole('Super Admin');
-      SecuritySuite.logAuditAction('LOGIN', cleanEmail, 'Super Admin', 'Admin Console', 'Super Admin logged in');
-      setAuditLogs(SecuritySuite.getAuditLogs());
-      showToast('Super Admin Access Granted ⚡');
-      return true;
-    } else if (cleanEmail === 'admin@nenoflex.com' && pass === 'admin123') {
-      setIsAdmin(true);
-      setUserRole('Admin');
-      SecuritySuite.logAuditAction('LOGIN', cleanEmail, 'Admin', 'Admin Console', 'Admin logged in');
-      setAuditLogs(SecuritySuite.getAuditLogs());
-      showToast('Admin Access Granted ⚡');
-      return true;
+  const adminLogin = async (email: string, pass: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success && data.token) {
+        setIsAdmin(true);
+        setUserRole(data.userRole || 'Admin');
+        setAdminToken(data.token);
+        showToast(`${data.userRole} Access Granted ⚡`);
+        return true;
+      } else {
+        showToast(data.message || 'Invalid Admin Credentials');
+        return false;
+      }
+    } catch (e) {
+      showToast('Admin login server error');
+      return false;
     }
-    return false;
   };
 
   const adminLogout = () => {
-    SecuritySuite.logAuditAction('LOGOUT', userRole === 'Super Admin' ? 'superadmin@nenoflex.com' : 'admin@nenoflex.com', userRole, 'Admin Console', 'User logged out');
     setIsAdmin(false);
     setUserRole('Customer');
-    setAuditLogs(SecuritySuite.getAuditLogs());
+    setAdminToken(null);
     showToast('Logged out of Admin Mode');
   };
 
-  const updateSiteSettings = (settings: SiteSettings) => {
-    saveSiteSettingsLocalAndCloud(settings);
-    SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings and font configuration');
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast('Site settings & Banners updated live globally!');
+  const updateSiteSettings = async (settings: SiteSettings) => {
+    setSiteSettings(settings);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({ action: 'save_settings', siteSettings: settings }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Site settings updated live globally!');
+      } else {
+        showToast(`Save Settings Error: ${data.message}`);
+      }
+    } catch (e) {
+      showToast('Failed to connect to server');
+    }
+  };
+
+  const forceLockAndSaveAllToCloud = async () => {
+    await updateSiteSettings(siteSettings);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({ action: 'set_all', products }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('✓ Authoritative Catalog & Settings Locked to Supabase Cloud!');
+      }
+    } catch (e) {}
   };
 
   const uploadCustomFont = (fontName: string, fontDataUrl: string) => {
@@ -410,10 +358,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       customFontFamily: fontName,
       customFontDataUrl: fontDataUrl,
     };
-    saveSiteSettingsLocalAndCloud(updated);
-    SecuritySuite.logAuditAction('UPLOAD_CUSTOM_FONT', 'admin@nenoflex.com', userRole, 'Typography Engine', `Uploaded custom device font ${fontName}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Font "${fontName}" uploaded & applied site-wide!`);
+    updateSiteSettings(updated);
+    showToast(`Font "${fontName}" applied site-wide!`);
   };
 
   const addFooterQuickLink = (link: FooterQuickLink) => {
@@ -423,8 +369,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ...siteSettings,
       footerQuickLinks: [...current, link],
     };
-    saveSiteSettingsLocalAndCloud(updated);
-    showToast(`Added Footer Link "${link.label}"`);
+    updateSiteSettings(updated);
   };
 
   const deleteFooterQuickLink = (index: number) => {
@@ -433,8 +378,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ...siteSettings,
       footerQuickLinks: current.filter((_, i) => i !== index),
     };
-    saveSiteSettingsLocalAndCloud(updated);
-    showToast('Footer Link Removed');
+    updateSiteSettings(updated);
   };
 
   const reorderFooterQuickLinks = (newLinks: FooterQuickLink[]) => {
@@ -442,63 +386,43 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ...siteSettings,
       footerQuickLinks: newLinks,
     };
-    saveSiteSettingsLocalAndCloud(updated);
-    showToast('Footer Links Re-aligned & Published Live!');
+    updateSiteSettings(updated);
   };
 
   const addCategory = (name: string) => {
     if (!name || siteSettings.customCategories.includes(name)) return;
     const updated = { ...siteSettings, customCategories: [...siteSettings.customCategories, name] };
-    saveSiteSettingsLocalAndCloud(updated);
-    SecuritySuite.logAuditAction('ADD_CATEGORY', 'admin@nenoflex.com', userRole, 'Catalog Categories', `Added new catalog category: ${name}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Added Category "${name}"`);
+    updateSiteSettings(updated);
   };
 
   const deleteCategory = (name: string) => {
     const updated = { ...siteSettings, customCategories: siteSettings.customCategories.filter(c => c !== name) };
-    saveSiteSettingsLocalAndCloud(updated);
-    SecuritySuite.logAuditAction('DELETE_CATEGORY', 'admin@nenoflex.com', userRole, 'Catalog Categories', `Deleted category: ${name}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Deleted Category "${name}"`);
+    updateSiteSettings(updated);
   };
 
   const addBrand = (brand: { name: string; logo: string; origin: string }) => {
     if (!brand.name || siteSettings.customBrands.some(b => b.name === brand.name)) return;
     const updated = { ...siteSettings, customBrands: [...siteSettings.customBrands, brand] };
-    saveSiteSettingsLocalAndCloud(updated);
-    SecuritySuite.logAuditAction('ADD_BRAND', 'admin@nenoflex.com', userRole, 'Catalog Brands', `Added new brand: ${brand.name}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Added Brand "${brand.name}"`);
+    updateSiteSettings(updated);
   };
 
   const deleteBrand = (name: string) => {
     const updated = { ...siteSettings, customBrands: siteSettings.customBrands.filter(b => b.name !== name) };
-    saveSiteSettingsLocalAndCloud(updated);
-    SecuritySuite.logAuditAction('DELETE_BRAND', 'admin@nenoflex.com', userRole, 'Catalog Brands', `Deleted brand: ${name}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Deleted Brand "${name}"`);
+    updateSiteSettings(updated);
   };
 
-  const reorderCollectionBoxes = (newOrder: string[]) => {
+  const reorderCollectionBoxes = async (newOrder: string[]) => {
     const updated = { ...siteSettings, collectionBoxOrder: newOrder };
-    saveSiteSettingsLocalAndCloud(updated);
-    SecuritySuite.logAuditAction('REORDER_HOMEPAGE_BOXES', 'admin@nenoflex.com', userRole, 'Homepage Layout', `Reordered homepage collection boxes: ${newOrder.join(', ')}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast('Homepage box order updated globally!');
+    await updateSiteSettings(updated);
   };
 
   const addCoupon = (c: Coupon) => {
     setCoupons(prev => [...prev, c]);
-    SecuritySuite.logAuditAction('CREATE_COUPON', 'admin@nenoflex.com', userRole, 'Coupons', `Created promo voucher ${c.code} (${c.discountPercent}% OFF)`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Coupon ${c.code} created!`);
   };
 
   const deleteCoupon = (code: string) => {
     setCoupons(prev => prev.filter(item => item.code !== code));
-    SecuritySuite.logAuditAction('DELETE_COUPON', 'admin@nenoflex.com', userRole, 'Coupons', `Deleted promo voucher ${code}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Coupon ${code} removed`);
   };
 
@@ -573,146 +497,157 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     showToast('Coupon removed');
   };
 
-  const placeOrder = (details: {
+  // Secure Order Placement: All prices, totals, coupons & stock decrements verified on server
+  const placeOrder = async (details: {
     shippingAddress: Order['shippingAddress'];
     paymentMethod: Order['paymentMethod'];
-  }): Order => {
-    const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-    const discount = appliedCoupon
-      ? Math.round((subtotal * appliedCoupon.discountPercent) / 100)
-      : 0;
-    const shippingFee = subtotal > 999 ? 0 : 80;
-    const total = subtotal - discount + shippingFee;
-
-    const newOrder: Order = {
-      id: `U0YJ${Math.floor(1000 + Math.random() * 9000)}P`,
-      items: [...cart],
-      subtotal,
-      discount,
-      shippingFee,
-      total,
-      status: 'Placed',
-      trackingCode: `NF-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-      courier: 'BlueDart Express Air',
-      shippingAddress: details.shippingAddress,
-      paymentMethod: details.paymentMethod,
-      createdAt: new Date().toISOString(),
-      estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    };
-
-    setOrders(prev => [newOrder, ...prev]);
+  }): Promise<Order | null> => {
+    if (cart.length === 0) {
+      showToast('Your cart is empty!');
+      return null;
+    }
 
     try {
-      fetch('/api/orders', {
+      const payload = {
+        items: cart.map(item => ({
+          productId: item.product.id,
+          selectedSize: item.selectedSize,
+          quantity: item.quantity,
+        })),
+        shippingAddress: details.shippingAddress,
+        paymentMethod: details.paymentMethod,
+        couponCode: appliedCoupon?.code,
+      };
+
+      const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder),
-      }).catch(err => console.warn('Cross-device order POST error:', err));
+        body: JSON.stringify(payload),
+      });
 
-      SupabaseService.saveOrder(newOrder);
-    } catch (e) {}
+      const data = await res.json();
 
-    clearCart();
-    setAppliedCoupon(null);
+      if (res.ok && data.success && data.order) {
+        const createdOrder: Order = data.order;
+        setOrders(prev => [createdOrder, ...prev]);
+        clearCart();
+        setAppliedCoupon(null);
+        playAdminChime();
 
-    playAdminChime();
+        // Dispatch background notification email
+        try {
+          fetch('/api/orders/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(createdOrder),
+          }).catch(err => console.warn('Email dispatch error:', err));
+        } catch (e) {}
 
-    try {
-      fetch('/api/orders/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder),
-      }).catch(err => console.warn('Email API dispatch background:', err));
-    } catch (e) {}
-
-    const auditLog = SecuritySuite.logAuditAction('PLACE_ORDER', details.shippingAddress.email, 'Customer', 'Order Engine', `NEW ORDER PLACED! Order ${newOrder.id} for ₹${total} via ${details.paymentMethod}`);
-    SupabaseService.saveAuditLog(auditLog);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Order ${newOrder.id} Placed! Notification sent to Admin & flexnagaon@gmail.com 🔔`);
-    return newOrder;
+        showToast(`Order ${createdOrder.id} Verified & Created! Total: ₹${createdOrder.total} 🔔`);
+        refreshCatalog(); // Refresh stock counts in client
+        return createdOrder;
+      } else {
+        showToast(data.message || 'Order creation failed');
+        return null;
+      }
+    } catch (e) {
+      showToast('Network error processing order placement');
+      return null;
+    }
   };
 
-  // Product CRUD
-  const addProduct = (p: Product) => {
-    const updated = [p, ...products.filter(item => item.id !== p.id)];
-    saveProductsLocal(updated);
-
+  // Server-Authorized Product Mutations
+  const addProduct = async (p: Product) => {
     try {
-      fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
         body: JSON.stringify({ action: 'add', product: p }),
-      }).catch(err => console.warn('API add product sync:', err));
-    } catch (e) {}
+      });
 
-    try {
-      SupabaseService.saveProduct(p);
-    } catch (e) {}
+      const data = await res.json();
 
-    SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${p.name}" Published Live!`);
+      if (res.ok && data.success) {
+        setProducts(prev => [p, ...prev.filter(item => item.id !== p.id)]);
+        showToast(`Product "${p.name}" Published Live!`);
+      } else {
+        showToast(`Server Product Add Error: ${data.message}`);
+      }
+    } catch (e) {
+      showToast('Failed to add product to server');
+    }
   };
 
-  const updateProduct = (updated: Product) => {
-    const updatedList = products.map(p => p.id === updated.id ? updated : p);
-    saveProductsLocal(updatedList);
-
+  const updateProduct = async (updated: Product) => {
     try {
-      fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
         body: JSON.stringify({ action: 'update', product: updated }),
-      }).catch(err => console.warn('API update product sync:', err));
-    } catch (e) {}
+      });
 
-    try {
-      SupabaseService.saveProduct(updated);
-    } catch (e) {}
+      const data = await res.json();
 
-    SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${updated.name}" Published Live!`);
+      if (res.ok && data.success) {
+        setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+        showToast(`Product "${updated.name}" Updated Live!`);
+      } else {
+        showToast(`Server Update Error: ${data.message}`);
+      }
+    } catch (e) {
+      showToast('Failed to update product on server');
+    }
   };
 
-  const deleteProduct = (id: string) => {
-    const found = products.find(p => p.id === id);
-    const updatedList = products.filter(p => p.id !== id);
-    saveProductsLocal(updatedList);
-
+  const deleteProduct = async (id: string) => {
     try {
-      fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
         body: JSON.stringify({ action: 'delete', product: { id } }),
-      }).catch(err => console.warn('API delete product sync:', err));
-    } catch (e) {}
+      });
 
-    try {
-      SupabaseService.deleteProduct(id);
-    } catch (e) {}
+      const data = await res.json();
 
-    SecuritySuite.logAuditAction('DELETE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Deleted product ${found?.name || id}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product deleted`);
+      if (res.ok && data.success) {
+        setProducts(prev => prev.filter(p => p.id !== id));
+        showToast('Product deleted from server');
+      } else {
+        showToast(`Server Delete Error: ${data.message}`);
+      }
+    } catch (e) {
+      showToast('Failed to delete product from server');
+    }
   };
 
-  const resetProductsToDefault = () => {
-    saveProductsLocal([]);
+  const resetProductsToDefault = async () => {
     try {
-      fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
         body: JSON.stringify({ action: 'set_all', products: [] }),
-      }).catch(err => console.warn('API reset products sync:', err));
+      });
+      if (res.ok) {
+        setProducts([]);
+        showToast('Cleared product catalog');
+      }
     } catch (e) {}
-    showToast('Cleared product catalog');
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-    SecuritySuite.logAuditAction('UPDATE_ORDER_STATUS', 'admin@nenoflex.com', userRole, 'Order Fulfillment', `Updated order ${orderId} to status ${status}`);
-    setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Updated order ${orderId} to "${status}"`);
   };
 
@@ -735,6 +670,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isAdmin,
         userRole,
         auditLogs,
+        adminToken,
+        isLoadingCatalog,
+        catalogError,
         adminLogin,
         adminLogout,
         updateSiteSettings,
@@ -767,6 +705,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateOrderStatus,
         toastMessage,
         showToast,
+        refreshCatalog,
       }}
     >
       {children}

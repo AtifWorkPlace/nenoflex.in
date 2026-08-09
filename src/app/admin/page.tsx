@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Package,
@@ -20,8 +20,6 @@ import {
   Upload,
   Type,
   Mail,
-  RefreshCw,
-  Send,
   X,
   Image as ImageIcon,
   Save,
@@ -31,7 +29,9 @@ import {
   ArrowDown,
   Link as LinkIcon,
   LayoutGrid,
-  ShieldCheck
+  ShieldCheck,
+  VolumeX,
+  AlertCircle
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
@@ -47,6 +47,7 @@ export default function EnterpriseAdminDashboard() {
     isAdmin,
     userRole,
     auditLogs,
+    adminLogin,
     adminLogout,
     updateSiteSettings,
     reorderCollectionBoxes,
@@ -68,19 +69,31 @@ export default function EnterpriseAdminDashboard() {
     deleteProduct,
     resetProductsToDefault,
     updateOrderStatus,
-    showToast
+    showToast,
+    refreshCatalog
   } = useStore();
+
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'font' | 'promo' | 'sound' | 'banner' | 'coupons' | 'orders' | 'audit'>('products');
 
-  // Site Settings Form
+  // Form State vs Server State Separation with isDirty tracking
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Audio Context Unlocking State
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
+
+  // Site Settings Form State
   const [bannerText, setBannerText] = useState(siteSettings.announcementBanner);
   const [heroTitleText, setHeroTitleText] = useState(siteSettings.heroTitle);
   const [heroSubText, setHeroSubText] = useState(siteSettings.heroSubtitle);
   const [heroCtaText, setHeroCtaText] = useState(siteSettings.heroCtaText || 'Shop now');
   const [heroTickerText, setHeroTickerText] = useState(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
 
-  // 3 Poster Banners Customizer Form
+  // 3 Poster Banners Form State
   const [posterTag1, setPosterTag1] = useState(siteSettings.heroPosterTag1 || 'New Drops 🔥');
   const [posterTitle1, setPosterTitle1] = useState(siteSettings.heroPosterTitle1 || 'NEW ARRIVAL');
   const [posterSub1, setPosterSub1] = useState(siteSettings.heroPosterSubtitle1 || 'www.nenoflex.in');
@@ -99,7 +112,7 @@ export default function EnterpriseAdminDashboard() {
   const [newLinkLabel, setNewLinkLabel] = useState('');
   const [newLinkHref, setNewLinkHref] = useState('');
 
-  // Typography & Device Font Customizer
+  // Typography
   const [fontFamilyName, setFontFamilyName] = useState(siteSettings.customFontFamily || 'Inter');
   const [fontFileName, setFontFileName] = useState('');
 
@@ -114,7 +127,7 @@ export default function EnterpriseAdminDashboard() {
   // Sound Engine Form
   const [selectedSound, setSelectedSound] = useState<NotificationSoundType>(siteSettings.notificationSound || 'cash-register');
 
-  // Footer & Social Links Customizer Form
+  // Footer Form
   const [footerTagline, setFooterTagline] = useState(siteSettings.footerTagline);
   const [footerPhone, setFooterPhone] = useState(siteSettings.footerPhone);
   const [footerWhatsappUrl, setFooterWhatsappUrl] = useState(siteSettings.footerWhatsappUrl || 'https://wa.me/916000149919');
@@ -137,32 +150,40 @@ export default function EnterpriseAdminDashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // Sync local form state with siteSettings whenever siteSettings updates from store
+  // Synchronize form state with siteSettings only when form is NOT dirty
   useEffect(() => {
-    setBannerText(siteSettings.announcementBanner);
-    setHeroTitleText(siteSettings.heroTitle);
-    setHeroSubText(siteSettings.heroSubtitle);
-    setHeroCtaText(siteSettings.heroCtaText || 'Shop now');
-    setHeroTickerText(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
-    setPosterTag1(siteSettings.heroPosterTag1 || 'New Drops 🔥');
-    setPosterTitle1(siteSettings.heroPosterTitle1 || 'NEW ARRIVAL');
-    setPosterSub1(siteSettings.heroPosterSubtitle1 || 'www.nenoflex.in');
-    setPosterLink1(siteSettings.heroPosterLink1 || '/shop?category=New Arrivals');
-    setPosterBg1(siteSettings.heroPosterBg1 || '');
-    setPosterImg2(siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80');
-    setPosterTitle2(siteSettings.heroPosterTitle2 || 'Jackets / Windcheaters');
-    setPosterLink2(siteSettings.heroPosterLink2 || '/shop?category=Jackets');
-    setPosterImg3(siteSettings.heroPosterImage3 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80');
-    setPosterTitle3(siteSettings.heroPosterTitle3 || 'New Drops Jerseys 🔥 🚀');
-    setPosterLink3(siteSettings.heroPosterLink3 || '/shop?category=Jerseys');
-    setFooterTagline(siteSettings.footerTagline);
-    setFooterPhone(siteSettings.footerPhone);
-    setFooterWhatsappUrl(siteSettings.footerWhatsappUrl || 'https://wa.me/916000149919');
-    setFooterInstagram(siteSettings.footerInstagram);
-    setFooterInstagramUrl(siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon');
-    setFooterCopyright(siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.');
-    setFontFamilyName(siteSettings.customFontFamily || 'Inter');
-  }, [siteSettings]);
+    if (!isDirty) {
+      setBannerText(siteSettings.announcementBanner);
+      setHeroTitleText(siteSettings.heroTitle);
+      setHeroSubText(siteSettings.heroSubtitle);
+      setHeroCtaText(siteSettings.heroCtaText || 'Shop now');
+      setHeroTickerText(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
+      setPosterTag1(siteSettings.heroPosterTag1 || 'New Drops 🔥');
+      setPosterTitle1(siteSettings.heroPosterTitle1 || 'NEW ARRIVAL');
+      setPosterSub1(siteSettings.heroPosterSubtitle1 || 'www.nenoflex.in');
+      setPosterLink1(siteSettings.heroPosterLink1 || '/shop?category=New Arrivals');
+      setPosterBg1(siteSettings.heroPosterBg1 || '');
+      setPosterImg2(siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80');
+      setPosterTitle2(siteSettings.heroPosterTitle2 || 'Jackets / Windcheaters');
+      setPosterLink2(siteSettings.heroPosterLink2 || '/shop?category=Jackets');
+      setPosterImg3(siteSettings.heroPosterImage3 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80');
+      setPosterTitle3(siteSettings.heroPosterTitle3 || 'New Drops Jerseys 🔥 🚀');
+      setPosterLink3(siteSettings.heroPosterLink3 || '/shop?category=Jerseys');
+      setFooterTagline(siteSettings.footerTagline);
+      setFooterPhone(siteSettings.footerPhone);
+      setFooterWhatsappUrl(siteSettings.footerWhatsappUrl || 'https://wa.me/916000149919');
+      setFooterInstagram(siteSettings.footerInstagram);
+      setFooterInstagramUrl(siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon');
+      setFooterCopyright(siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.');
+      setFontFamilyName(siteSettings.customFontFamily || 'Inter');
+    }
+  }, [siteSettings, isDirty]);
+
+  const unlockAudioContext = () => {
+    playAdminChime();
+    setIsAudioUnlocked(true);
+    showToast('Audio Notification Context Unlocked 🔊');
+  };
 
   const getCleanProductTemplate = (): Partial<Product> => ({
     sku: `SKU-NF-${Math.floor(100 + Math.random() * 900)}`,
@@ -202,32 +223,73 @@ export default function EnterpriseAdminDashboard() {
 
   const [newProd, setNewProd] = useState<Partial<Product>>(getCleanProductTemplate());
 
+  const handleAdminAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingAuth(true);
+    const success = await adminLogin(loginEmail, loginPassword);
+    setIsSubmittingAuth(false);
+  };
+
   if (!isAdmin) {
     return (
-      <div className="min-h-[70vh] bg-white text-black flex items-center justify-center py-16 px-4 font-sans">
-        <div className="max-w-md w-full p-8 rounded-3xl border border-neutral-300 text-center space-y-4 shadow-xl">
-          <div className="w-16 h-16 rounded-full bg-black text-white flex items-center justify-center mx-auto">
+      <div className="min-h-[75vh] bg-black text-white flex items-center justify-center py-16 px-4 font-sans">
+        <div className="max-w-md w-full p-8 rounded-3xl border border-neutral-800 bg-neutral-950 text-center space-y-6 shadow-2xl">
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg">
             <Lock className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold uppercase font-mono">Admin Access Required</h2>
-          <p className="text-xs text-neutral-600">
-            This page is restricted to authorized NenoFlex administrators. Please sign in to continue.
+          <div>
+            <h2 className="text-xl font-bold uppercase font-mono text-white">NenoFlex Admin Gateway</h2>
+            <p className="text-xs text-neutral-400 mt-1">
+              Sign in with authorized administrator credentials to access the executive command center.
+            </p>
+          </div>
+
+          <form onSubmit={handleAdminAuthSubmit} className="space-y-4 text-left text-xs font-mono">
+            <div>
+              <label className="block text-neutral-400 mb-1">Admin Email</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                placeholder="admin@nenoflex.com"
+                className="w-full px-4 py-3 rounded-xl bg-black border border-neutral-700 text-white focus:border-amber-400 focus:outline-none"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-neutral-400 mb-1">Password</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-xl bg-black border border-neutral-700 text-white focus:border-amber-400 focus:outline-none"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmittingAuth}
+              className="w-full py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-neutral-200 transition-all shadow-lg cursor-pointer disabled:opacity-50 font-mono"
+            >
+              {isSubmittingAuth ? 'Verifying Session...' : 'Sign In To Admin Console'}
+            </button>
+          </form>
+
+          <p className="text-[10px] text-neutral-500 font-mono">
+            Protected by Server JWT Tokens & Supabase Row Level Security.
           </p>
-          <Link
-            href="/login"
-            className="inline-block w-full py-3 rounded-full bg-black text-white font-bold text-xs uppercase tracking-wider hover:bg-neutral-800"
-          >
-            Go to Admin Login
-          </Link>
         </div>
       </div>
     );
   }
 
-  // Device Poster Image Upload Handler (<0.03s Edge Optimization)
+  // Device Poster Image Upload Handler
   const handleDevicePosterUpload = (file: File, posterIndex: 1 | 2 | 3) => {
     if (!file) return;
-    showToast(`Optimizing & uploading Poster ${posterIndex} from device...`);
+    setIsDirty(true);
+    showToast(`Optimizing Poster ${posterIndex} image...`);
     const reader = new FileReader();
     reader.onload = async (e) => {
       const rawDataUrl = e.target?.result as string;
@@ -235,7 +297,7 @@ export default function EnterpriseAdminDashboard() {
       if (posterIndex === 1) setPosterBg1(compressed);
       else if (posterIndex === 2) setPosterImg2(compressed);
       else if (posterIndex === 3) setPosterImg3(compressed);
-      showToast(`Poster ${posterIndex} Image uploaded! Click "Save All Layout & Image Customizer" to publish live.`);
+      showToast(`Poster ${posterIndex} updated in form! Click "Save Settings" to publish.`);
     };
     reader.readAsDataURL(file);
   };
@@ -243,18 +305,19 @@ export default function EnterpriseAdminDashboard() {
   // Device Promo Image Upload Handler
   const handleDevicePromoUpload = (file: File) => {
     if (!file) return;
-    showToast('Optimizing & uploading Promo Image from device...');
+    setIsDirty(true);
+    showToast('Optimizing Promo image...');
     const reader = new FileReader();
     reader.onload = async (e) => {
       const rawDataUrl = e.target?.result as string;
       const compressed = await compressImageDataUrl(rawDataUrl, 800, 0.75);
       setPromoImage(compressed);
-      showToast('Promo Image uploaded from device!');
+      showToast('Promo image updated in form!');
     };
     reader.readAsDataURL(file);
   };
 
-  // Multi-File Device Image Upload Handler for Products
+  // Multi-File Product Image Upload Handler
   const handleMultiDeviceImageUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
@@ -262,7 +325,7 @@ export default function EnterpriseAdminDashboard() {
     const remainingSlots = 10 - currentGallery.length;
 
     if (remainingSlots <= 0) {
-      showToast('Maximum 10 images limit reached for this product!');
+      showToast('Maximum 10 images limit reached!');
       return;
     }
 
@@ -270,7 +333,7 @@ export default function EnterpriseAdminDashboard() {
     let uploadedCount = 0;
     const newImageUrls: string[] = [];
 
-    showToast('Optimizing & compressing uploaded image(s)...');
+    showToast('Optimizing product image(s)...');
 
     filesToUpload.forEach(file => {
       const reader = new FileReader();
@@ -286,14 +349,12 @@ export default function EnterpriseAdminDashboard() {
           const hover: string = updatedGallery[1] || primary;
 
           if (editingProduct) {
-            const updated = {
+            setEditingProduct({
               ...editingProduct,
               image: primary,
               imageHover: hover,
               gallery: updatedGallery,
-            };
-            setEditingProduct(updated);
-            updateProduct(updated);
+            });
           } else {
             setNewProd(prev => ({
               ...prev,
@@ -302,7 +363,7 @@ export default function EnterpriseAdminDashboard() {
               gallery: updatedGallery,
             }));
           }
-          showToast(`Uploaded ${newImageUrls.length} image(s)! Click "Publish Product Live" to save.`);
+          showToast(`Uploaded ${newImageUrls.length} image(s)!`);
         }
       };
       reader.readAsDataURL(file);
@@ -312,14 +373,12 @@ export default function EnterpriseAdminDashboard() {
   const removeGalleryImage = (index: number) => {
     if (editingProduct) {
       const updatedGallery = editingProduct.gallery.filter((_, i) => i !== index);
-      const updated = {
+      setEditingProduct({
         ...editingProduct,
         image: updatedGallery[0] || editingProduct.image,
         imageHover: updatedGallery[1] || updatedGallery[0] || editingProduct.imageHover,
         gallery: updatedGallery,
-      };
-      setEditingProduct(updated);
-      updateProduct(updated);
+      });
     } else {
       const updatedGallery = (newProd.gallery || []).filter((_, i) => i !== index);
       setNewProd(prev => ({
@@ -329,7 +388,6 @@ export default function EnterpriseAdminDashboard() {
         gallery: updatedGallery,
       }));
     }
-    showToast('Image removed from gallery');
   };
 
   const handleDeviceFontFileUpload = (file: File) => {
@@ -345,9 +403,10 @@ export default function EnterpriseAdminDashboard() {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSiteSettings({
+    setIsSaving(true);
+    await updateSiteSettings({
       ...siteSettings,
       announcementBanner: bannerText,
       heroTitle: heroTitleText,
@@ -373,11 +432,14 @@ export default function EnterpriseAdminDashboard() {
       footerCopyright,
       customFontFamily: fontFamilyName,
     });
+    setIsDirty(false);
+    setIsSaving(false);
   };
 
-  const handleSavePromo = (e: React.FormEvent) => {
+  const handleSavePromo = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSiteSettings({
+    setIsSaving(true);
+    await updateSiteSettings({
       ...siteSettings,
       promoModal: {
         enabled: promoEnabled,
@@ -388,15 +450,20 @@ export default function EnterpriseAdminDashboard() {
         buttonLink: promoBtnLink,
       }
     });
-    showToast(`Homepage Pop-up ${promoEnabled ? 'ENABLED' : 'DISABLED'}`);
+    setIsDirty(false);
+    setIsSaving(false);
+    showToast(`Promo Banner ${promoEnabled ? 'ENABLED' : 'DISABLED'}`);
   };
 
-  const handleSaveSound = (e: React.FormEvent) => {
+  const handleSaveSound = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSiteSettings({
+    setIsSaving(true);
+    await updateSiteSettings({
       ...siteSettings,
       notificationSound: selectedSound,
     });
+    setIsDirty(false);
+    setIsSaving(false);
     playAdminChime(selectedSound);
     showToast(`Order Notification Sound set to "${selectedSound.toUpperCase()}"`);
   };
@@ -411,12 +478,12 @@ export default function EnterpriseAdminDashboard() {
     setNewCouponCode('');
   };
 
-  const handleCreateProduct = (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
     if (editingProduct) {
-      updateProduct(editingProduct);
+      await updateProduct(editingProduct);
       setEditingProduct(null);
-      showToast(`✓ Updated Product "${editingProduct.name}" Live!`);
     } else {
       const title = newProd.name && newProd.name.trim().length > 0 ? newProd.name.trim() : 'Custom Vintage Vault Item';
       const fullProduct: Product = {
@@ -426,11 +493,11 @@ export default function EnterpriseAdminDashboard() {
         id: `nf-${Date.now()}`,
         gallery: newProd.gallery && newProd.gallery.length > 0 ? newProd.gallery : [newProd.image || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80'],
       } as Product;
-      addProduct(fullProduct);
+      await addProduct(fullProduct);
       setNewProd(getCleanProductTemplate());
       setShowAddModal(false);
-      showToast(`✓ Published New Product "${fullProduct.name}" Live to Website!`);
     }
+    setIsSaving(false);
   };
 
   // Re-align Homepage Showcase Sections
@@ -483,25 +550,33 @@ export default function EnterpriseAdminDashboard() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-mono font-bold">
-              ROLE: {userRole.toUpperCase()} (101% CONTROL)
+              ROLE: {userRole.toUpperCase()} (AUTHENTICATED SESSION)
             </span>
             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-400" /> PERMANENT LOCALSTORAGE & SUPABASE CLOUD LOCK ACTIVE
+              <ShieldCheck className="w-3 h-3 text-emerald-400" /> SUPABASE CLOUD AUTHORITATIVE DB
             </span>
+            {!isAudioUnlocked && (
+              <button
+                onClick={unlockAudioContext}
+                className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-mono font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <VolumeX className="w-3 h-3 text-rose-400" /> Unlock Audio Context
+              </button>
+            )}
           </div>
           <h1 className="luxury-heading text-2xl sm:text-3xl font-bold text-white mt-2">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">Re-align homepage sections & footer links live, upload poster photos from device.</p>
+          <p className="text-xs text-neutral-400">Server-authorized CRUD, live stock concurrency & Cloud Database Management.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={forceLockAndSaveAllToCloud}
-            className="px-5 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase transition-all flex items-center gap-2 shadow-lg cursor-pointer font-mono"
-            title="Lock and save all products, settings, and poster images to cloud"
+            disabled={isSaving}
+            className="px-5 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase transition-all flex items-center gap-2 shadow-lg cursor-pointer font-mono disabled:opacity-50"
           >
-            <Lock className="w-4 h-4" /> LOCK & SYNC ALL DATA TO CLOUD
+            <Lock className="w-4 h-4" /> {isSaving ? 'PERSISTING TO CLOUD...' : 'LOCK & SYNC ALL DATA TO CLOUD'}
           </button>
           <button
             onClick={() => {
@@ -509,7 +584,7 @@ export default function EnterpriseAdminDashboard() {
               setNewProd(getCleanProductTemplate());
               setShowAddModal(true);
             }}
-            className="px-6 py-3 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 transition-all flex items-center gap-2 shadow-lg cursor-pointer"
+            className="px-6 py-3 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 transition-all flex items-center gap-2 shadow-lg cursor-pointer font-mono"
           >
             <Plus className="w-4 h-4" /> Add Product Live
           </button>
@@ -522,6 +597,22 @@ export default function EnterpriseAdminDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Unsaved Changes Banner */}
+      {isDirty && (
+        <div className="p-4 rounded-2xl bg-amber-950/60 border border-amber-500/40 text-amber-300 font-mono text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400" />
+            <span>Form state modified. External background updates are currently locked to protect your edits.</span>
+          </div>
+          <button
+            onClick={handleSaveSettings}
+            className="px-4 py-1.5 rounded-full bg-amber-400 text-black font-bold uppercase text-[10px]"
+          >
+            Save Changes Now
+          </button>
+        </div>
+      )}
 
       {/* Tabs Navigation */}
       <div className="flex border-b border-neutral-800 overflow-x-auto">
@@ -558,8 +649,8 @@ export default function EnterpriseAdminDashboard() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h2 className="text-sm font-mono uppercase font-bold text-white">Vault Products Directory (Live Website Sync)</h2>
-              <p className="text-xs text-neutral-400">Click "New Product" or "Edit" on any product to upload custom photos & publish live.</p>
+              <h2 className="text-sm font-mono uppercase font-bold text-white">Vault Products Directory (Supabase Cloud Authoritative)</h2>
+              <p className="text-xs text-neutral-400">All product additions, edits, and deletions require server admin authentication.</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -567,7 +658,7 @@ export default function EnterpriseAdminDashboard() {
                 className="px-3.5 py-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-mono text-xs flex items-center gap-1.5 cursor-pointer"
                 title="Clear catalog"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Clear All Products
+                <RotateCcw className="w-3.5 h-3.5" /> Clear Catalog
               </button>
               <button
                 onClick={() => {
@@ -575,7 +666,7 @@ export default function EnterpriseAdminDashboard() {
                   setNewProd(getCleanProductTemplate());
                   setShowAddModal(true);
                 }}
-                className="px-4 py-2 rounded-full bg-white text-black font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-lg"
+                className="px-4 py-2 rounded-full bg-white text-black font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer shadow-lg font-mono"
               >
                 <Plus className="w-3.5 h-3.5" /> New Product
               </button>
@@ -668,7 +759,10 @@ export default function EnterpriseAdminDashboard() {
               <input
                 type="text"
                 value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
+                onChange={e => {
+                  setNewCatName(e.target.value);
+                  setIsDirty(true);
+                }}
                 placeholder="New Category Name (e.g. Vintage Denim)"
                 className="flex-1 px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
               />
@@ -706,7 +800,10 @@ export default function EnterpriseAdminDashboard() {
               <input
                 type="text"
                 value={newBrandName}
-                onChange={e => setNewBrandName(e.target.value)}
+                onChange={e => {
+                  setNewBrandName(e.target.value);
+                  setIsDirty(true);
+                }}
                 placeholder="Brand Name (e.g. Stüssy)"
                 className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
               />
@@ -761,7 +858,7 @@ export default function EnterpriseAdminDashboard() {
         <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
           <div>
             <h2 className="text-xl font-bold text-white font-mono uppercase">Site-Wide Typography & Font Uploader Engine</h2>
-            <p className="text-xs text-neutral-400 mt-1">Upload font files (.ttf, .otf, .woff, .woff2) directly from your device or select font presets to update the whole website font live.</p>
+            <p className="text-xs text-neutral-400 mt-1">Upload font files (.ttf, .otf, .woff, .woff2) directly from your device or select font presets.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -798,7 +895,7 @@ export default function EnterpriseAdminDashboard() {
             <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4 text-xs font-mono">
               <h3 className="font-bold text-sm text-emerald-400 uppercase">2. Upload Font File From Device 📁</h3>
               <p className="text-neutral-400 leading-relaxed">
-                Upload custom font files (<strong className="text-white">.ttf, .otf, .woff, .woff2</strong>) from your computer, iPhone, or Android device.
+                Upload custom font files (<strong className="text-white">.ttf, .otf, .woff, .woff2</strong>) from your computer or phone.
               </p>
 
               <div className="p-4 rounded-xl bg-black border border-neutral-800 text-center space-y-3">
@@ -835,11 +932,7 @@ export default function EnterpriseAdminDashboard() {
               onClick={() => {
                 const nextState = !promoEnabled;
                 setPromoEnabled(nextState);
-                updateSiteSettings({
-                  ...siteSettings,
-                  promoModal: { ...siteSettings.promoModal, enabled: nextState }
-                });
-                showToast(`Promo Banner ${nextState ? 'ENABLED' : 'DISABLED'}`);
+                setIsDirty(true);
               }}
               className={`px-5 py-2.5 rounded-full font-mono text-xs font-bold uppercase transition-all cursor-pointer ${
                 promoEnabled ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
@@ -856,7 +949,10 @@ export default function EnterpriseAdminDashboard() {
                 <input
                   type="text"
                   value={promoTitle}
-                  onChange={e => setPromoTitle(e.target.value)}
+                  onChange={e => {
+                    setPromoTitle(e.target.value);
+                    setIsDirty(true);
+                  }}
                   className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
                   required
                 />
@@ -866,7 +962,10 @@ export default function EnterpriseAdminDashboard() {
                 <label className="block text-neutral-400 font-mono mb-1">Subtitle / Offer Description</label>
                 <textarea
                   value={promoSubtitle}
-                  onChange={e => setPromoSubtitle(e.target.value)}
+                  onChange={e => {
+                    setPromoSubtitle(e.target.value);
+                    setIsDirty(true);
+                  }}
                   rows={2}
                   className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white"
                   required
@@ -879,7 +978,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={promoImage}
-                    onChange={e => setPromoImage(e.target.value)}
+                    onChange={e => {
+                      setPromoImage(e.target.value);
+                      setIsDirty(true);
+                    }}
                     placeholder="Image URL or Base64 Data"
                     className="flex-1 px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                     required
@@ -902,7 +1004,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={promoBtnText}
-                    onChange={e => setPromoBtnText(e.target.value)}
+                    onChange={e => {
+                      setPromoBtnText(e.target.value);
+                      setIsDirty(true);
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white"
                     required
                   />
@@ -912,7 +1017,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={promoBtnLink}
-                    onChange={e => setPromoBtnLink(e.target.value)}
+                    onChange={e => {
+                      setPromoBtnLink(e.target.value);
+                      setIsDirty(true);
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                     required
                   />
@@ -921,9 +1029,10 @@ export default function EnterpriseAdminDashboard() {
 
               <button
                 type="submit"
-                className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer"
+                disabled={isSaving}
+                className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer disabled:opacity-50 font-mono"
               >
-                Save Promo Pop-up Settings
+                {isSaving ? 'Saving...' : 'Save Promo Pop-up Settings'}
               </button>
             </div>
 
@@ -945,9 +1054,19 @@ export default function EnterpriseAdminDashboard() {
       {/* TAB 5: ORDER SOUND CHIME SELECTOR */}
       {activeTab === 'sound' && (
         <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <div>
-            <h2 className="text-xl font-bold text-white font-mono uppercase">Order Push Notification Sound Chime Engine</h2>
-            <p className="text-xs text-neutral-400 mt-1">Synthesized Web Audio API chimes triggered live whenever a customer completes an order.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white font-mono uppercase">Order Push Notification Sound Chime Engine</h2>
+              <p className="text-xs text-neutral-400 mt-1">Synthesized Web Audio API chimes triggered live whenever a customer completes an order.</p>
+            </div>
+            {!isAudioUnlocked && (
+              <button
+                onClick={unlockAudioContext}
+                className="px-4 py-2 rounded-full bg-amber-500 text-black font-mono font-bold text-xs uppercase flex items-center gap-1.5 shadow-lg cursor-pointer"
+              >
+                <Volume2 className="w-4 h-4" /> Click to Unlock Browser Audio
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -961,6 +1080,7 @@ export default function EnterpriseAdminDashboard() {
                 key={sound.id}
                 onClick={() => {
                   setSelectedSound(sound.id as any);
+                  setIsDirty(true);
                   playAdminChime(sound.id as any);
                 }}
                 className={`p-5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
@@ -988,9 +1108,10 @@ export default function EnterpriseAdminDashboard() {
 
           <button
             onClick={handleSaveSound}
-            className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer"
+            disabled={isSaving}
+            className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer disabled:opacity-50 font-mono"
           >
-            Save Sound Chime Preference
+            {isSaving ? 'Saving...' : 'Save Sound Chime Preference'}
           </button>
         </div>
       )}
@@ -998,14 +1119,14 @@ export default function EnterpriseAdminDashboard() {
       {/* TAB 6: UNIFIED HOMEPAGE SECTIONS & FOOTER QUICK LINKS MANAGER */}
       {activeTab === 'banner' && (
         <div className="space-y-8 font-sans">
-          {/* Section 1: Homepage Showcase Sections Re-aligning Manager (New Arrivals, Jackets, Jerseys, Brands) */}
+          {/* Section 1: Homepage Showcase Sections Re-aligning Manager */}
           <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-white font-mono uppercase text-amber-400 flex items-center gap-2">
                 <LayoutGrid className="w-5 h-5" /> Homepage Showcase Sections Manager (Re-align with [ ↑ ] & [ ↓ ])
               </h2>
               <p className="text-xs text-neutral-400 mt-1">
-                Re-align the order of all homepage sections (<strong className="text-white">New Arrivals, Jackets / Windcheaters, New Drops Jerseys 🔥 🚀, Vault Brands</strong>) using <strong className="text-amber-400">[ ↑ Move Up ]</strong> and <strong className="text-amber-400">[ ↓ Move Down ]</strong>. Updates live globally in 0.03s!
+                Re-align the order of all homepage sections using <strong className="text-amber-400">[ ↑ Move Up ]</strong> and <strong className="text-amber-400">[ ↓ Move Down ]</strong>.
               </p>
             </div>
 
@@ -1053,7 +1174,7 @@ export default function EnterpriseAdminDashboard() {
                 <Sparkles className="w-5 h-5" /> Bento Poster Banners & New Arrivals Image Customizer
               </h2>
               <p className="text-xs text-neutral-400 mt-1">
-                Upload photos directly from your phone/PC gallery (<strong className="text-white">0.03s instant refresh</strong>) for Poster 1 (New Arrivals), Poster 2 (Jackets / Windcheaters), and Poster 3 (New Drops Jerseys 🔥 🚀).
+                Upload poster photos directly from your device for Poster 1 (New Arrivals), Poster 2 (Jackets), and Poster 3 (Jerseys).
               </p>
             </div>
 
@@ -1068,7 +1189,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterTag1}
-                      onChange={e => setPosterTag1(e.target.value)}
+                      onChange={e => {
+                        setPosterTag1(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
                     />
                   </div>
@@ -1077,7 +1201,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterTitle1}
-                      onChange={e => setPosterTitle1(e.target.value)}
+                      onChange={e => {
+                        setPosterTitle1(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
                     />
                   </div>
@@ -1086,14 +1213,17 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterSub1}
-                      onChange={e => setPosterSub1(e.target.value)}
+                      onChange={e => {
+                        setPosterSub1(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
                     />
                   </div>
 
                   {/* Device Image Uploader for Poster 1 */}
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Background Image (Upload From Device)</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Background Image</label>
                     <div className="space-y-2">
                       <label className="cursor-pointer w-full py-2.5 px-3 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg hover:bg-neutral-200">
                         <Upload className="w-4 h-4" /> Upload Poster 1 Photo 📁
@@ -1107,7 +1237,10 @@ export default function EnterpriseAdminDashboard() {
                       <input
                         type="text"
                         value={posterBg1}
-                        onChange={e => setPosterBg1(e.target.value)}
+                        onChange={e => {
+                          setPosterBg1(e.target.value);
+                          setIsDirty(true);
+                        }}
                         placeholder="Or paste image URL"
                         className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono text-[10px]"
                       />
@@ -1119,7 +1252,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterLink1}
-                      onChange={e => setPosterLink1(e.target.value)}
+                      onChange={e => {
+                        setPosterLink1(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-emerald-400 font-mono"
                     />
                   </div>
@@ -1129,9 +1265,8 @@ export default function EnterpriseAdminDashboard() {
                 <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
                   <h3 className="font-bold text-sm text-white font-mono uppercase">Poster 2: Jackets / Windcheaters</h3>
 
-                  {/* Device Image Uploader for Poster 2 */}
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Poster Photo (Upload From Device)</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Poster Photo</label>
                     <div className="space-y-2">
                       <label className="cursor-pointer w-full py-2.5 px-3 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg hover:bg-neutral-200">
                         <Upload className="w-4 h-4" /> Upload Poster 2 Photo 📁
@@ -1145,7 +1280,10 @@ export default function EnterpriseAdminDashboard() {
                       <input
                         type="text"
                         value={posterImg2}
-                        onChange={e => setPosterImg2(e.target.value)}
+                        onChange={e => {
+                          setPosterImg2(e.target.value);
+                          setIsDirty(true);
+                        }}
                         placeholder="Or paste image URL"
                         className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono text-[10px]"
                       />
@@ -1157,7 +1295,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterTitle2}
-                      onChange={e => setPosterTitle2(e.target.value)}
+                      onChange={e => {
+                        setPosterTitle2(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
                     />
                   </div>
@@ -1166,7 +1307,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterLink2}
-                      onChange={e => setPosterLink2(e.target.value)}
+                      onChange={e => {
+                        setPosterLink2(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
                     />
                   </div>
@@ -1176,9 +1320,8 @@ export default function EnterpriseAdminDashboard() {
                 <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
                   <h3 className="font-bold text-sm text-white font-mono uppercase">Poster 3: New Drops Jerseys</h3>
 
-                  {/* Device Image Uploader for Poster 3 */}
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Poster Photo (Upload From Device)</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Poster Photo</label>
                     <div className="space-y-2">
                       <label className="cursor-pointer w-full py-2.5 px-3 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase flex items-center justify-center gap-1.5 shadow-lg hover:bg-neutral-200">
                         <Upload className="w-4 h-4" /> Upload Poster 3 Photo 📁
@@ -1192,7 +1335,10 @@ export default function EnterpriseAdminDashboard() {
                       <input
                         type="text"
                         value={posterImg3}
-                        onChange={e => setPosterImg3(e.target.value)}
+                        onChange={e => {
+                          setPosterImg3(e.target.value);
+                          setIsDirty(true);
+                        }}
                         placeholder="Or paste image URL"
                         className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono text-[10px]"
                       />
@@ -1204,7 +1350,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterTitle3}
-                      onChange={e => setPosterTitle3(e.target.value)}
+                      onChange={e => {
+                        setPosterTitle3(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
                     />
                   </div>
@@ -1213,7 +1362,10 @@ export default function EnterpriseAdminDashboard() {
                     <input
                       type="text"
                       value={posterLink3}
-                      onChange={e => setPosterLink3(e.target.value)}
+                      onChange={e => {
+                        setPosterLink3(e.target.value);
+                        setIsDirty(true);
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
                     />
                   </div>
@@ -1225,7 +1377,10 @@ export default function EnterpriseAdminDashboard() {
                 <input
                   type="text"
                   value={heroTickerText}
-                  onChange={e => setHeroTickerText(e.target.value)}
+                  onChange={e => {
+                    setHeroTickerText(e.target.value);
+                    setIsDirty(true);
+                  }}
                   className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-amber-400 font-mono"
                   required
                 />
@@ -1237,7 +1392,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={footerPhone}
-                    onChange={e => setFooterPhone(e.target.value)}
+                    onChange={e => {
+                      setFooterPhone(e.target.value);
+                      setIsDirty(true);
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                     required
                   />
@@ -1247,7 +1405,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={footerWhatsappUrl}
-                    onChange={e => setFooterWhatsappUrl(e.target.value)}
+                    onChange={e => {
+                      setFooterWhatsappUrl(e.target.value);
+                      setIsDirty(true);
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-emerald-400 font-mono"
                     required
                   />
@@ -1260,7 +1421,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={footerInstagram}
-                    onChange={e => setFooterInstagram(e.target.value)}
+                    onChange={e => {
+                      setFooterInstagram(e.target.value);
+                      setIsDirty(true);
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                     required
                   />
@@ -1270,7 +1434,10 @@ export default function EnterpriseAdminDashboard() {
                   <input
                     type="text"
                     value={footerInstagramUrl}
-                    onChange={e => setFooterInstagramUrl(e.target.value)}
+                    onChange={e => {
+                      setFooterInstagramUrl(e.target.value);
+                      setIsDirty(true);
+                    }}
                     className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-pink-400 font-mono"
                     required
                   />
@@ -1282,7 +1449,10 @@ export default function EnterpriseAdminDashboard() {
                 <input
                   type="text"
                   value={footerCopyright}
-                  onChange={e => setFooterCopyright(e.target.value)}
+                  onChange={e => {
+                    setFooterCopyright(e.target.value);
+                    setIsDirty(true);
+                  }}
                   className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
                   required
                 />
@@ -1290,9 +1460,10 @@ export default function EnterpriseAdminDashboard() {
 
               <button
                 type="submit"
-                className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer shadow-lg"
+                disabled={isSaving}
+                className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer shadow-lg disabled:opacity-50 font-mono"
               >
-                Save All Layout & Image Customizer Live Globally (0.03s Edge Sync)
+                {isSaving ? 'Saving...' : 'Save All Layout & Settings Live Globally'}
               </button>
             </form>
           </div>
@@ -1304,7 +1475,7 @@ export default function EnterpriseAdminDashboard() {
                 <LinkIcon className="w-5 h-5" /> Footer Quick Links Manager (Add, Delete & Re-align Links)
               </h2>
               <p className="text-xs text-neutral-400 mt-1">
-                Customize the Footer Quick Links ("New Arrivals", "New Drops 🔥", "Vintage Fleeces & Vault Grails"). Move links up or down to re-align!
+                Customize the Footer Quick Links ("New Arrivals", "New Drops 🔥", "Vintage Fleeces & Vault Grails").
               </p>
             </div>
 
@@ -1525,7 +1696,7 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* CREATE / EDIT PRODUCT MODAL WITH INSTANT PUBLISH */}
+      {/* CREATE / EDIT PRODUCT MODAL */}
       {(showAddModal || editingProduct) && (
         <div className="fixed inset-0 z-50 p-4 flex items-center justify-center bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-3xl bg-neutral-900 border border-neutral-700 rounded-3xl p-6 sm:p-8 space-y-5 text-white overflow-y-auto max-h-[92vh] shadow-2xl font-sans">
@@ -1534,7 +1705,7 @@ export default function EnterpriseAdminDashboard() {
                 <h3 className="font-bold text-lg font-mono uppercase text-amber-400 flex items-center gap-2">
                   <Sparkles className="w-5 h-5" /> {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Create & Publish New Vault Product'}
                 </h3>
-                <p className="text-[11px] text-neutral-400 mt-0.5">Upload up to 10 photos. Click "Publish Product Live to Website" to save.</p>
+                <p className="text-[11px] text-neutral-400 mt-0.5 font-mono">Upload up to 10 photos. Server validation enforced.</p>
               </div>
               <button
                 onClick={() => {
@@ -1580,7 +1751,7 @@ export default function EnterpriseAdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-neutral-400 mb-1 font-mono">Product Title (e.g. Nike Vintage 90s Embroidered Sweatshirt)</label>
+                <label className="block text-neutral-400 mb-1 font-mono">Product Title</label>
                 <input
                   type="text"
                   value={editingProduct ? editingProduct.name : (newProd.name || '')}
@@ -1605,7 +1776,7 @@ export default function EnterpriseAdminDashboard() {
                         ? setEditingProduct({ ...editingProduct, brand: e.target.value as any })
                         : setNewProd({ ...newProd, brand: e.target.value as any })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white cursor-pointer font-mono"
                   >
                     {siteSettings.customBrands.map(b => (
                       <option key={b.name} value={b.name}>{b.name}</option>
@@ -1621,7 +1792,7 @@ export default function EnterpriseAdminDashboard() {
                         ? setEditingProduct({ ...editingProduct, category: e.target.value as any })
                         : setNewProd({ ...newProd, category: e.target.value as any })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white cursor-pointer font-mono"
                   >
                     {siteSettings.customCategories.map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -1726,7 +1897,7 @@ export default function EnterpriseAdminDashboard() {
                     />
                   </label>
                   <span className="text-[11px] text-neutral-400 font-mono">
-                    Select 1 to 10 photos from PC/Phone gallery.
+                    Select up to 10 photos.
                   </span>
                 </div>
 
@@ -1772,9 +1943,10 @@ export default function EnterpriseAdminDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="px-8 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold uppercase font-mono text-xs cursor-pointer shadow-xl flex items-center gap-2"
+                  disabled={isSaving}
+                  className="px-8 py-3 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold uppercase font-mono text-xs cursor-pointer shadow-xl flex items-center gap-2 disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" /> Publish Product Live to Website & Supabase
+                  <Save className="w-4 h-4" /> {isSaving ? 'Publishing...' : 'Publish Product Live to Server'}
                 </button>
               </div>
             </form>
