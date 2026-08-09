@@ -1,20 +1,62 @@
-import { Order, SiteSettings } from '@/types';
+import { Order, Product } from '@/types';
 import { AuditLog } from '@/lib/security';
 
 const getSupabaseConfig = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://mrrtmrjqlzhajopevnpo.supabase.co';
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SECRET_KEY || 'sb_publishable_tkznoefVD3i0aQgQe5Le3A_geT00KaP';
   return { url, key, isConfigured: Boolean(url && key) };
 };
 
 export const SupabaseService = {
+  // Save Product to Supabase PostgreSQL Database Table
+  saveProduct: async (product: Product): Promise<boolean> => {
+    const { url, key, isConfigured } = getSupabaseConfig();
+    if (!isConfigured) return false;
+
+    try {
+      const response = await fetch(`${url}/rest/v1/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': key!,
+          'Authorization': `Bearer ${key}`,
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify(product),
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.warn('Supabase product save error:', error);
+      return false;
+    }
+  },
+
+  // Fetch Products from Supabase PostgreSQL Database Table
+  fetchProducts: async (): Promise<Product[] | null> => {
+    const { url, key, isConfigured } = getSupabaseConfig();
+    if (!isConfigured) return null;
+
+    try {
+      const response = await fetch(`${url}/rest/v1/products?select=*`, {
+        headers: {
+          'apikey': key!,
+          'Authorization': `Bearer ${key}`,
+        },
+      });
+
+      if (!response.ok) return null;
+      const data = await response.json();
+      return Array.isArray(data) && data.length > 0 ? data : null;
+    } catch {
+      return null;
+    }
+  },
+
   // Save Order to Supabase PostgreSQL Database Table
   saveOrder: async (order: Order): Promise<boolean> => {
     const { url, key, isConfigured } = getSupabaseConfig();
-    if (!isConfigured) {
-      console.log('Supabase: Running in local localStorage mode (Vercel env variables ready)');
-      return false;
-    }
+    if (!isConfigured) return false;
 
     try {
       const response = await fetch(`${url}/rest/v1/orders`, {

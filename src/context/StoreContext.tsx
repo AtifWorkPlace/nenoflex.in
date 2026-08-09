@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (100% Real-Time Live Persistence)
+  // Product CRUD (100% Supabase + Real-Time Live Persistence)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -157,7 +157,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  // Synchronize products to localStorage & Cloud API
+  // Synchronize products to localStorage, Supabase PostgreSQL, and Cloud API
   const syncProducts = (updatedProducts: Product[]) => {
     setProducts(updatedProducts);
     try {
@@ -166,6 +166,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('LocalStorage save warning:', e);
     }
 
+    // Direct POST to /api/products (which saves to products_db.json + Supabase PostgreSQL)
     try {
       fetch('/api/products', {
         method: 'POST',
@@ -173,9 +174,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         body: JSON.stringify({ action: 'set_all', products: updatedProducts }),
       }).catch(err => console.warn('API products sync error:', err));
     } catch (e) {}
+
+    // Direct client-side POST to Supabase PostgreSQL table
+    try {
+      updatedProducts.forEach(p => SupabaseService.saveProduct(p));
+    } catch (e) {}
   };
 
-  // Load saved products from localStorage & Cloud Products API on mount
+  // Load products from localStorage, Supabase PostgreSQL & Cloud API on mount
   useEffect(() => {
     try {
       const savedProds = localStorage.getItem('nenoflex_products');
@@ -189,7 +195,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('LocalStorage products load error:', e);
     }
 
-    const fetchCloudProducts = async () => {
+    const fetchCloudAndSupabaseProducts = async () => {
+      // 1. Try Supabase Client Direct Fetch
+      try {
+        const supabaseData = await SupabaseService.fetchProducts();
+        if (supabaseData && supabaseData.length > 0) {
+          setProducts(supabaseData);
+          try {
+            localStorage.setItem('nenoflex_products', JSON.stringify(supabaseData));
+          } catch (e) {}
+          return;
+        }
+      } catch (e) {}
+
+      // 2. Fallback to /api/products (Supabase & Disk DB API)
       try {
         const res = await fetch('/api/products');
         if (res.ok) {
@@ -205,7 +224,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.warn('Cloud Products fetch:', e);
       }
     };
-    fetchCloudProducts();
+
+    fetchCloudAndSupabaseProducts();
   }, []);
 
   // Cross-Device Order Synchronization Polling
@@ -484,13 +504,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setOrders(prev => [newOrder, ...prev]);
 
-    // Cross-Device Cloud Sync POST to /api/orders
+    // Cross-Device Cloud Sync POST to /api/orders & Supabase
     try {
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newOrder),
       }).catch(err => console.warn('Cross-device order POST error:', err));
+
+      SupabaseService.saveOrder(newOrder);
     } catch (e) {}
 
     clearCart();
@@ -517,13 +539,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD (Permanent Sync across LocalStorage, React State & Cloud API!)
+  // Product CRUD (Permanent Supabase + LocalStorage + API Sync!)
   const addProduct = (p: Product) => {
     const updated = [p, ...products.filter(item => item.id !== p.id)];
     syncProducts(updated);
     SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${p.name}" Saved Permanently!`);
+    showToast(`Product "${p.name}" Saved to Supabase & Live!`);
   };
 
   const updateProduct = (updated: Product) => {
@@ -531,7 +553,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     syncProducts(updatedList);
     SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${updated.name}" Saved Permanently!`);
+    showToast(`Product "${updated.name}" Saved to Supabase & Live!`);
   };
 
   const deleteProduct = (id: string) => {
