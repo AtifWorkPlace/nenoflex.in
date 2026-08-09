@@ -7,7 +7,7 @@ git init
 git branch -M main
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
-git commit -m "Supabase PostgreSQL Database Product Catalog Sync & Live Homepage Display - NenoFlex Official Web (nenoflex.in)"
+git commit -m "Refactored Admin Product Modal with Publish Product Live button & Supabase sync - NenoFlex Official Web (nenoflex.in)"
 git checkout -b dev
 git checkout main
 git push -u origin main
