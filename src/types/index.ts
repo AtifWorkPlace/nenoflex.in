@@ -145,12 +145,22 @@ export interface SiteSettings {
   heroCtaText: string;
   heroSecondaryCtaText: string;
   heroTickerText: string;
-  heroPosterImage1?: string;
-  heroPosterTitle1?: string;
+
+  // 3 Bento Poster Banners (New Arrivals, Jackets, Jerseys)
+  heroPosterBg1?: string; // Background image or color for Poster 1 (New Arrivals)
+  heroPosterTag1?: string; // e.g. "New Drops 🔥"
+  heroPosterTitle1?: string; // e.g. "NEW ARRIVAL"
+  heroPosterSubtitle1?: string; // e.g. "www.nenoflex.in"
   heroPosterLink1?: string;
-  heroPosterImage2?: string;
-  heroPosterTitle2?: string;
+
+  heroPosterImage2?: string; // Poster 2 Image URL (Jackets)
+  heroPosterTitle2?: string; // e.g. "Jackets / Windcheaters"
   heroPosterLink2?: string;
+
+  heroPosterImage3?: string; // Poster 3 Image URL (Jerseys)
+  heroPosterTitle3?: string; // e.g. "New Drops Jerseys 🔥 🚀"
+  heroPosterLink3?: string;
+
   footerTagline: string;
   footerPhone: string;
   footerWhatsappUrl: string;

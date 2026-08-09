@@ -97,6 +97,45 @@ const DEFAULT_FOOTER_QUICK_LINKS: FooterQuickLink[] = [
   { label: 'Clearance Vault', href: '/shop?category=Clearance' },
 ];
 
+const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  announcementBanner: 'from showrooms 89%-90% off!!',
+  heroTitle: 'New Drops 🔥',
+  heroSubtitle: 'Handpicked Imported Vintage & Streetwear Vault',
+  heroCtaText: 'Shop now',
+  heroSecondaryCtaText: 'Explore Vault',
+  heroTickerText: 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||',
+  heroPosterTag1: 'New Drops 🔥',
+  heroPosterTitle1: 'NEW ARRIVAL',
+  heroPosterSubtitle1: 'www.nenoflex.in',
+  heroPosterLink1: '/shop?category=New Arrivals',
+  heroPosterImage2: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
+  heroPosterTitle2: 'Jackets / Windcheaters',
+  heroPosterLink2: '/shop?category=Jackets',
+  heroPosterImage3: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
+  heroPosterTitle3: 'New Drops Jerseys 🔥 🚀',
+  heroPosterLink3: '/shop?category=Jerseys',
+  footerTagline: 'Flex Your Style. Premium Handpicked Imported Vault.',
+  footerPhone: '+91 60001 49919',
+  footerWhatsappUrl: 'https://wa.me/916000149919',
+  footerInstagram: '@flexnagaon',
+  footerInstagramUrl: 'https://instagram.com/flexnagaon',
+  footerCopyright: '© 2022 NenoFlex Official. All rights reserved.',
+  footerQuickLinks: DEFAULT_FOOTER_QUICK_LINKS,
+  collectionBoxOrder: ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'],
+  notificationSound: 'cash-register',
+  customCategories: ['Jerseys', 'Jackets', 'Sweatshirts', 'Hoodies', 'Windbreakers', 'Graphic Tees', 'Oversized T-Shirts', 'Cargo Pants', 'Jeans', 'Caps'],
+  customBrands: BRANDS_LIST,
+  customFontFamily: 'Inter',
+  promoModal: {
+    enabled: true,
+    title: 'SUMMER DROP 2026',
+    subtitle: 'Get up to 90% OFF on imported Nike & TNF Vault Grails!',
+    image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
+    buttonText: 'Claim Offer Now',
+    buttonLink: '/shop',
+  }
+};
+
 const getInitialProductsSync = (): Product[] => {
   if (typeof window === 'undefined') return [];
   try {
@@ -111,8 +150,23 @@ const getInitialProductsSync = (): Product[] => {
   return [];
 };
 
+const getInitialSettingsSync = (): SiteSettings => {
+  if (typeof window === 'undefined') return DEFAULT_SITE_SETTINGS;
+  try {
+    const saved = localStorage.getItem('nenoflex_site_settings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        return { ...DEFAULT_SITE_SETTINGS, ...parsed };
+      }
+    }
+  } catch (e) {}
+  return DEFAULT_SITE_SETTINGS;
+};
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(getInitialProductsSync);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(getInitialSettingsSync);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
@@ -122,41 +176,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [userRole, setUserRole] = useState<UserRole>('Customer');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>({
-    announcementBanner: 'from showrooms 89%-90% off!!',
-    heroTitle: 'New Drops 🔥',
-    heroSubtitle: 'Handpicked Imported Vintage & Streetwear Vault',
-    heroCtaText: 'Shop now',
-    heroSecondaryCtaText: 'Explore Vault',
-    heroTickerText: 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||',
-    heroPosterImage1: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
-    heroPosterTitle1: 'Jackets / Windcheaters',
-    heroPosterLink1: '/shop?category=Jackets',
-    heroPosterImage2: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
-    heroPosterTitle2: 'New Drops Jerseys 🔥 🚀',
-    heroPosterLink2: '/shop?category=Jerseys',
-    footerTagline: 'Flex Your Style. Premium Handpicked Imported Vault.',
-    footerPhone: '+91 60001 49919',
-    footerWhatsappUrl: 'https://wa.me/916000149919',
-    footerInstagram: '@flexnagaon',
-    footerInstagramUrl: 'https://instagram.com/flexnagaon',
-    footerCopyright: '© 2022 NenoFlex Official. All rights reserved.',
-    footerQuickLinks: DEFAULT_FOOTER_QUICK_LINKS,
-    collectionBoxOrder: ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'],
-    notificationSound: 'cash-register',
-    customCategories: ['Jerseys', 'Jackets', 'Sweatshirts', 'Hoodies', 'Windbreakers', 'Graphic Tees', 'Oversized T-Shirts', 'Cargo Pants', 'Jeans', 'Caps'],
-    customBrands: BRANDS_LIST,
-    customFontFamily: 'Inter',
-    promoModal: {
-      enabled: true,
-      title: 'SUMMER DROP 2026',
-      subtitle: 'Get up to 90% OFF on imported Nike & TNF Vault Grails!',
-      image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
-      buttonText: 'Claim Offer Now',
-      buttonLink: '/shop',
-    }
-  });
 
   const [coupons, setCoupons] = useState<Coupon[]>([
     { code: 'FLEX10', discountPercent: 10 },
@@ -177,17 +196,43 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Cross-tab real-time product update listener
+  // Synchronize siteSettings locally & to Cloud
+  const saveSiteSettingsLocalAndCloud = (newSettings: SiteSettings) => {
+    setSiteSettings(newSettings);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('nenoflex_site_settings', JSON.stringify(newSettings));
+        window.dispatchEvent(new Event('nenoflex_settings_updated'));
+      } catch (e) {}
+    }
+
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save_settings', siteSettings: newSettings }),
+      }).catch(err => console.warn('API siteSettings sync error:', err));
+    } catch (e) {}
+  };
+
+  // Cross-tab real-time product & settings update listener
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handleStorageOrCustomEvent = () => {
       try {
-        const saved = localStorage.getItem('nenoflex_products');
-        if (saved) {
-          const parsed = JSON.parse(saved);
+        const savedProds = localStorage.getItem('nenoflex_products');
+        if (savedProds) {
+          const parsed = JSON.parse(savedProds);
           if (Array.isArray(parsed)) {
             setProducts(parsed.map(normalizeProductFromDb));
+          }
+        }
+        const savedSettings = localStorage.getItem('nenoflex_site_settings');
+        if (savedSettings) {
+          const parsedS = JSON.parse(savedSettings);
+          if (parsedS && typeof parsedS === 'object') {
+            setSiteSettings(prev => ({ ...prev, ...parsedS }));
           }
         }
       } catch (e) {}
@@ -195,46 +240,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     window.addEventListener('storage', handleStorageOrCustomEvent);
     window.addEventListener('nenoflex_products_updated', handleStorageOrCustomEvent);
+    window.addEventListener('nenoflex_settings_updated', handleStorageOrCustomEvent);
     return () => {
       window.removeEventListener('storage', handleStorageOrCustomEvent);
       window.removeEventListener('nenoflex_products_updated', handleStorageOrCustomEvent);
+      window.removeEventListener('nenoflex_settings_updated', handleStorageOrCustomEvent);
     };
   }, []);
 
-  // Fast Edge-First Product Fetch (<30ms load time, ZERO sample photo flash!)
+  // Fast Edge-First Product & Settings Fetch (<30ms load time)
   useEffect(() => {
-    const fetchFastProducts = async () => {
-      let fetchedList: Product[] | null = null;
-
+    const fetchFastProductsAndSettings = async () => {
       try {
         const res = await fetch('/api/products', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.products) && data.products.length > 0) {
-            fetchedList = data.products;
+          if (data.success) {
+            if (Array.isArray(data.products) && data.products.length > 0) {
+              const normalized = data.products.map(normalizeProductFromDb);
+              setProducts(normalized);
+              try {
+                localStorage.setItem('nenoflex_products', JSON.stringify(normalized));
+              } catch (e) {}
+            }
+            if (data.siteSettings && typeof data.siteSettings === 'object') {
+              setSiteSettings(prev => ({ ...prev, ...data.siteSettings }));
+              try {
+                localStorage.setItem('nenoflex_site_settings', JSON.stringify(data.siteSettings));
+              } catch (e) {}
+            }
           }
         }
       } catch (e) {}
-
-      if (!fetchedList || fetchedList.length === 0) {
-        try {
-          const supabaseData = await SupabaseService.fetchProducts();
-          if (supabaseData && supabaseData.length > 0) {
-            fetchedList = supabaseData;
-          }
-        } catch (e) {}
-      }
-
-      if (fetchedList && fetchedList.length > 0) {
-        const normalized = fetchedList.map(normalizeProductFromDb);
-        setProducts(normalized);
-        try {
-          localStorage.setItem('nenoflex_products', JSON.stringify(normalized));
-        } catch (e) {}
-      }
     };
 
-    fetchFastProducts();
+    fetchFastProductsAndSettings();
   }, []);
 
   // Cross-Device Order Synchronization Polling
@@ -315,18 +355,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateSiteSettings = (settings: SiteSettings) => {
-    setSiteSettings(settings);
+    saveSiteSettingsLocalAndCloud(settings);
     SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings and font configuration');
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast('Site settings & Banners updated live!');
+    showToast('Site settings & Banners updated live globally!');
   };
 
   const uploadCustomFont = (fontName: string, fontDataUrl: string) => {
-    setSiteSettings(prev => ({
-      ...prev,
+    const updated = {
+      ...siteSettings,
       customFontFamily: fontName,
       customFontDataUrl: fontDataUrl,
-    }));
+    };
+    saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('UPLOAD_CUSTOM_FONT', 'admin@nenoflex.com', userRole, 'Typography Engine', `Uploaded custom device font ${fontName}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Font "${fontName}" uploaded & applied site-wide!`);
@@ -334,39 +375,46 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addFooterQuickLink = (link: FooterQuickLink) => {
     if (!link.label || !link.href) return;
-    setSiteSettings(prev => ({
-      ...prev,
-      footerQuickLinks: [...(prev.footerQuickLinks || DEFAULT_FOOTER_QUICK_LINKS), link],
-    }));
+    const current = siteSettings.footerQuickLinks || DEFAULT_FOOTER_QUICK_LINKS;
+    const updated = {
+      ...siteSettings,
+      footerQuickLinks: [...current, link],
+    };
+    saveSiteSettingsLocalAndCloud(updated);
     showToast(`Added Footer Link "${link.label}"`);
   };
 
   const deleteFooterQuickLink = (index: number) => {
-    setSiteSettings(prev => ({
-      ...prev,
-      footerQuickLinks: (prev.footerQuickLinks || DEFAULT_FOOTER_QUICK_LINKS).filter((_, i) => i !== index),
-    }));
+    const current = siteSettings.footerQuickLinks || DEFAULT_FOOTER_QUICK_LINKS;
+    const updated = {
+      ...siteSettings,
+      footerQuickLinks: current.filter((_, i) => i !== index),
+    };
+    saveSiteSettingsLocalAndCloud(updated);
     showToast('Footer Link Removed');
   };
 
   const reorderFooterQuickLinks = (newLinks: FooterQuickLink[]) => {
-    setSiteSettings(prev => ({
-      ...prev,
+    const updated = {
+      ...siteSettings,
       footerQuickLinks: newLinks,
-    }));
-    showToast('Footer Links Re-aligned!');
+    };
+    saveSiteSettingsLocalAndCloud(updated);
+    showToast('Footer Links Re-aligned & Published Live!');
   };
 
   const addCategory = (name: string) => {
     if (!name || siteSettings.customCategories.includes(name)) return;
-    setSiteSettings(prev => ({ ...prev, customCategories: [...prev.customCategories, name] }));
+    const updated = { ...siteSettings, customCategories: [...siteSettings.customCategories, name] };
+    saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('ADD_CATEGORY', 'admin@nenoflex.com', userRole, 'Catalog Categories', `Added new catalog category: ${name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Added Category "${name}"`);
   };
 
   const deleteCategory = (name: string) => {
-    setSiteSettings(prev => ({ ...prev, customCategories: prev.customCategories.filter(c => c !== name) }));
+    const updated = { ...siteSettings, customCategories: siteSettings.customCategories.filter(c => c !== name) };
+    saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('DELETE_CATEGORY', 'admin@nenoflex.com', userRole, 'Catalog Categories', `Deleted category: ${name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Deleted Category "${name}"`);
@@ -374,21 +422,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addBrand = (brand: { name: string; logo: string; origin: string }) => {
     if (!brand.name || siteSettings.customBrands.some(b => b.name === brand.name)) return;
-    setSiteSettings(prev => ({ ...prev, customBrands: [...prev.customBrands, brand] }));
+    const updated = { ...siteSettings, customBrands: [...siteSettings.customBrands, brand] };
+    saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('ADD_BRAND', 'admin@nenoflex.com', userRole, 'Catalog Brands', `Added new brand: ${brand.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Added Brand "${brand.name}"`);
   };
 
   const deleteBrand = (name: string) => {
-    setSiteSettings(prev => ({ ...prev, customBrands: prev.customBrands.filter(b => b.name !== name) }));
+    const updated = { ...siteSettings, customBrands: siteSettings.customBrands.filter(b => b.name !== name) };
+    saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('DELETE_BRAND', 'admin@nenoflex.com', userRole, 'Catalog Brands', `Deleted brand: ${name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Deleted Brand "${name}"`);
   };
 
   const reorderCollectionBoxes = (newOrder: string[]) => {
-    setSiteSettings(prev => ({ ...prev, collectionBoxOrder: newOrder }));
+    const updated = { ...siteSettings, collectionBoxOrder: newOrder };
+    saveSiteSettingsLocalAndCloud(updated);
     SecuritySuite.logAuditAction('REORDER_HOMEPAGE_BOXES', 'admin@nenoflex.com', userRole, 'Homepage Layout', `Reordered homepage collection boxes: ${newOrder.join(', ')}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast('Homepage box order updated!');

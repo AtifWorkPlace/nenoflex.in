@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { Product } from '@/types';
+import { Product, SiteSettings } from '@/types';
 import { INITIAL_PRODUCTS } from '@/data/products';
 import { normalizeProductFromDb } from '@/lib/supabase';
 
 const DB_FILE = path.join(process.cwd(), 'products_db.json');
+const SETTINGS_FILE = path.join(process.cwd(), 'settings_db.json');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mrrtmrjqlzhajopevnpo.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
-// Global edge memory cache
+// Global Edge Memory Caches
 let globalInMemoryCatalog: Product[] | null = null;
+let globalInMemorySettings: SiteSettings | null = null;
 
 function loadProductsFromDisk(): Product[] {
   if (globalInMemoryCatalog && globalInMemoryCatalog.length > 0) {
@@ -37,11 +39,32 @@ function saveProductsToDisk(products: Product[]) {
   } catch (err) {}
 }
 
-// Write catalog to Supabase Cloud Storage (site_settings + products table)
+function loadSettingsFromDisk(): SiteSettings | null {
+  if (globalInMemorySettings) return globalInMemorySettings;
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const data = fs.readFileSync(SETTINGS_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === 'object') {
+        globalInMemorySettings = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function saveSettingsToDisk(settings: SiteSettings) {
+  globalInMemorySettings = settings;
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+  } catch (e) {}
+}
+
+// Write catalog & site settings to Supabase Cloud
 async function syncCatalogToSupabaseCloud(products: Product[]) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
 
-  // 1. Save full JSON catalog to Supabase 'site_settings' key-value container (Fail-safe!)
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/site_settings`, {
       method: 'POST',
@@ -59,7 +82,6 @@ async function syncCatalogToSupabaseCloud(products: Product[]) {
     });
   } catch (e) {}
 
-  // 2. Save individual rows to Supabase 'products' table
   try {
     const formattedRows = products.map(p => ({
       id: p.id,
@@ -108,11 +130,31 @@ async function syncCatalogToSupabaseCloud(products: Product[]) {
   } catch (e) {}
 }
 
+// Write site settings (Footer Quick Links, Poster Banners, Ticker) to Supabase Cloud
+async function syncSettingsToSupabaseCloud(settings: SiteSettings) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        id: 'global_site_settings',
+        catalog_data: settings,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {}
+}
+
 // Read live catalog from Supabase Cloud
 async function fetchCatalogFromSupabaseCloud(): Promise<Product[] | null> {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
 
-  // 1. Try Supabase 'site_settings' key-value container (Fail-safe primary!)
   try {
     const resSettings = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.global_products_catalog&select=*`, {
       headers: {
@@ -129,7 +171,6 @@ async function fetchCatalogFromSupabaseCloud(): Promise<Product[] | null> {
     }
   } catch (e) {}
 
-  // 2. Fallback to Supabase 'products' table
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/products?select=*`, {
       headers: {
@@ -149,31 +190,56 @@ async function fetchCatalogFromSupabaseCloud(): Promise<Product[] | null> {
   return null;
 }
 
+// Read live site settings from Supabase Cloud
+async function fetchSettingsFromSupabaseCloud(): Promise<SiteSettings | null> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const resSettings = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.global_site_settings&select=*`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+      },
+      cache: 'no-store',
+    });
+    if (resSettings.ok) {
+      const dataSettings = await resSettings.json();
+      if (Array.isArray(dataSettings) && dataSettings[0]?.catalog_data) {
+        return dataSettings[0].catalog_data;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
 export async function GET() {
   const supabaseProds = await fetchCatalogFromSupabaseCloud();
-  if (supabaseProds && supabaseProds.length > 0) {
-    globalInMemoryCatalog = supabaseProds;
-    saveProductsToDisk(supabaseProds);
-    return NextResponse.json({
-      success: true,
-      products: supabaseProds,
-      source: 'supabase_cloud'
-    });
-  }
+  const supabaseSettings = await fetchSettingsFromSupabaseCloud();
 
-  const diskProds = loadProductsFromDisk();
+  const products = supabaseProds || loadProductsFromDisk();
+  const siteSettings = supabaseSettings || loadSettingsFromDisk();
+
+  if (supabaseProds) saveProductsToDisk(supabaseProds);
+  if (supabaseSettings) saveSettingsToDisk(supabaseSettings);
+
   return NextResponse.json({
     success: true,
-    products: diskProds,
-    source: 'disk_memory'
+    products,
+    siteSettings,
+    source: supabaseProds ? 'supabase_cloud' : 'disk_memory'
   });
 }
 
 export async function POST(req: Request) {
   try {
     const payload = await req.json();
-    const { action, product, products } = payload;
+    const { action, product, products, siteSettings } = payload;
     let currentStore = loadProductsFromDisk();
+
+    if (action === 'save_settings' && siteSettings) {
+      saveSettingsToDisk(siteSettings);
+      syncSettingsToSupabaseCloud(siteSettings);
+      return NextResponse.json({ success: true, message: 'Site settings saved to Supabase Cloud globally', siteSettings });
+    }
 
     if (action === 'set_all' && Array.isArray(products)) {
       currentStore = products.map(normalizeProductFromDb);

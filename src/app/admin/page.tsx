@@ -76,14 +76,20 @@ export default function EnterpriseAdminDashboard() {
   const [heroCtaText, setHeroCtaText] = useState(siteSettings.heroCtaText || 'Shop now');
   const [heroTickerText, setHeroTickerText] = useState(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
 
-  // Poster Banners Customizer
-  const [posterImg1, setPosterImg1] = useState(siteSettings.heroPosterImage1 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80');
-  const [posterTitle1, setPosterTitle1] = useState(siteSettings.heroPosterTitle1 || 'Jackets / Windcheaters');
-  const [posterLink1, setPosterLink1] = useState(siteSettings.heroPosterLink1 || '/shop?category=Jackets');
+  // 3 Poster Banners Customizer Form
+  const [posterTag1, setPosterTag1] = useState(siteSettings.heroPosterTag1 || 'New Drops 🔥');
+  const [posterTitle1, setPosterTitle1] = useState(siteSettings.heroPosterTitle1 || 'NEW ARRIVAL');
+  const [posterSub1, setPosterSub1] = useState(siteSettings.heroPosterSubtitle1 || 'www.nenoflex.in');
+  const [posterLink1, setPosterLink1] = useState(siteSettings.heroPosterLink1 || '/shop?category=New Arrivals');
+  const [posterBg1, setPosterBg1] = useState(siteSettings.heroPosterBg1 || '');
 
-  const [posterImg2, setPosterImg2] = useState(siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80');
-  const [posterTitle2, setPosterTitle2] = useState(siteSettings.heroPosterTitle2 || 'New Drops Jerseys 🔥 🚀');
-  const [posterLink2, setPosterLink2] = useState(siteSettings.heroPosterLink2 || '/shop?category=Jerseys');
+  const [posterImg2, setPosterImg2] = useState(siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80');
+  const [posterTitle2, setPosterTitle2] = useState(siteSettings.heroPosterTitle2 || 'Jackets / Windcheaters');
+  const [posterLink2, setPosterLink2] = useState(siteSettings.heroPosterLink2 || '/shop?category=Jackets');
+
+  const [posterImg3, setPosterImg3] = useState(siteSettings.heroPosterImage3 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80');
+  const [posterTitle3, setPosterTitle3] = useState(siteSettings.heroPosterTitle3 || 'New Drops Jerseys 🔥 🚀');
+  const [posterLink3, setPosterLink3] = useState(siteSettings.heroPosterLink3 || '/shop?category=Jerseys');
 
   // Footer Quick Links Customizer
   const [newLinkLabel, setNewLinkLabel] = useState('');
@@ -287,12 +293,17 @@ export default function EnterpriseAdminDashboard() {
       heroSubtitle: heroSubText,
       heroCtaText,
       heroTickerText,
-      heroPosterImage1: posterImg1,
+      heroPosterTag1: posterTag1,
       heroPosterTitle1: posterTitle1,
+      heroPosterSubtitle1: posterSub1,
       heroPosterLink1: posterLink1,
+      heroPosterBg1: posterBg1,
       heroPosterImage2: posterImg2,
       heroPosterTitle2: posterTitle2,
       heroPosterLink2: posterLink2,
+      heroPosterImage3: posterImg3,
+      heroPosterTitle3: posterTitle3,
+      heroPosterLink3: posterLink3,
       footerTagline,
       footerPhone,
       footerWhatsappUrl,
@@ -316,7 +327,7 @@ export default function EnterpriseAdminDashboard() {
         buttonLink: promoBtnLink,
       }
     });
-    showToast(`Homepage Pop-up ${promoEnabled ? 'ENABLED' : 'DISABLED'}!`);
+    showToast(`Homepage Pop-up ${promoEnabled ? 'ENABLED' : 'DISABLED'}`);
   };
 
   const handleSaveSound = (e: React.FormEvent) => {
@@ -878,39 +889,57 @@ export default function EnterpriseAdminDashboard() {
       {/* TAB 6: HOMEPAGE POSTERS, BANNERS & FOOTER QUICK LINKS CUSTOMIZER */}
       {activeTab === 'banner' && (
         <div className="space-y-8 font-sans">
-          {/* Section 1: Homepage Hero Poster Banners */}
+          {/* Section 1: Homepage Hero 3 Bento Poster Banners (New Arrivals, Jackets, Jerseys) */}
           <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-white font-mono uppercase text-amber-400 flex items-center gap-2">
-                <Sparkles className="w-5 h-5" /> Homepage Hero Poster Banners & New Arrivals Image Customizer
+                <Sparkles className="w-5 h-5" /> Homepage Hero 3 Poster Banners & New Arrivals Image Customizer
               </h2>
               <p className="text-xs text-neutral-400 mt-1">
-                Upload or paste image URLs for your main Homepage Hero Posters ("Jackets / Windcheaters", "New Drops Jerseys 🔥").
+                Customize Poster 1 (New Arrivals), Poster 2 (Jackets / Windcheaters), and Poster 3 (New Drops Jerseys 🔥 🚀) live.
               </p>
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-6 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Poster Box 1 */}
-                <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4">
-                  <h3 className="font-bold text-sm text-white font-mono uppercase">Poster Banner #1</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Poster Box 1: New Arrivals */}
+                <div className="p-6 rounded-2xl bg-neutral-900 border border-amber-500/30 space-y-3">
+                  <h3 className="font-bold text-sm text-amber-400 font-mono uppercase">Poster 1: New Arrivals</h3>
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Image URL / Upload Image</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Tag Text</label>
                     <input
                       type="text"
-                      value={posterImg1}
-                      onChange={e => setPosterImg1(e.target.value)}
-                      placeholder="Paste Image URL or data URL"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                      value={posterTag1}
+                      onChange={e => setPosterTag1(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
                     />
                   </div>
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Link Button Title</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Title Text</label>
                     <input
                       type="text"
                       value={posterTitle1}
                       onChange={e => setPosterTitle1(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Subtitle Text</label>
+                    <input
+                      type="text"
+                      value={posterSub1}
+                      onChange={e => setPosterSub1(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Background Image URL (Optional)</label>
+                    <input
+                      type="text"
+                      value={posterBg1}
+                      onChange={e => setPosterBg1(e.target.value)}
+                      placeholder="Paste Image URL for custom background"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
                     />
                   </div>
                   <div>
@@ -919,31 +948,31 @@ export default function EnterpriseAdminDashboard() {
                       type="text"
                       value={posterLink1}
                       onChange={e => setPosterLink1(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-emerald-400 font-mono"
                     />
                   </div>
                 </div>
 
-                {/* Poster Box 2 */}
-                <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4">
-                  <h3 className="font-bold text-sm text-white font-mono uppercase">Poster Banner #2</h3>
+                {/* Poster Box 2: Jackets / Windcheaters */}
+                <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
+                  <h3 className="font-bold text-sm text-white font-mono uppercase">Poster 2: Jackets / Windcheaters</h3>
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Image URL / Upload Image</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Poster Image URL / Device Image</label>
                     <input
                       type="text"
                       value={posterImg2}
                       onChange={e => setPosterImg2(e.target.value)}
-                      placeholder="Paste Image URL or data URL"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                      placeholder="Paste Image URL"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-neutral-400 font-mono mb-1">Link Button Title</label>
+                    <label className="block text-neutral-400 font-mono mb-1">Button Title</label>
                     <input
                       type="text"
                       value={posterTitle2}
                       onChange={e => setPosterTitle2(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-bold"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
                     />
                   </div>
                   <div>
@@ -952,7 +981,40 @@ export default function EnterpriseAdminDashboard() {
                       type="text"
                       value={posterLink2}
                       onChange={e => setPosterLink2(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Poster Box 3: New Drops Jerseys 🔥 🚀 */}
+                <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
+                  <h3 className="font-bold text-sm text-white font-mono uppercase">Poster 3: New Drops Jerseys</h3>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Poster Image URL / Device Image</label>
+                    <input
+                      type="text"
+                      value={posterImg3}
+                      onChange={e => setPosterImg3(e.target.value)}
+                      placeholder="Paste Image URL"
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Button Title</label>
+                    <input
+                      type="text"
+                      value={posterTitle3}
+                      onChange={e => setPosterTitle3(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Link Redirect URL</label>
+                    <input
+                      type="text"
+                      value={posterLink3}
+                      onChange={e => setPosterLink3(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
                     />
                   </div>
                 </div>
@@ -1030,7 +1092,7 @@ export default function EnterpriseAdminDashboard() {
                 type="submit"
                 className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer shadow-lg"
               >
-                Save All Banners, Posters & Social Redirects Live
+                Save All Banners, Posters & Social Redirects Live Globally
               </button>
             </form>
           </div>

@@ -17,13 +17,20 @@ export default function HomePage() {
   const boxOrder = siteSettings.collectionBoxOrder || ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'];
   const tickerText = siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||';
 
-  const posterImg1 = siteSettings.heroPosterImage1 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80';
-  const posterTitle1 = siteSettings.heroPosterTitle1 || 'Jackets / Windcheaters';
-  const posterLink1 = siteSettings.heroPosterLink1 || '/shop?category=Jackets';
+  // 3 Bento Poster Banners Customizer Values
+  const posterTag1 = siteSettings.heroPosterTag1 || 'New Drops 🔥';
+  const posterTitle1 = siteSettings.heroPosterTitle1 || 'NEW ARRIVAL';
+  const posterSubtitle1 = siteSettings.heroPosterSubtitle1 || 'www.nenoflex.in';
+  const posterLink1 = siteSettings.heroPosterLink1 || '/shop?category=New Arrivals';
+  const posterBg1 = siteSettings.heroPosterBg1 || '';
 
-  const posterImg2 = siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80';
-  const posterTitle2 = siteSettings.heroPosterTitle2 || 'New Drops Jerseys 🔥 🚀';
-  const posterLink2 = siteSettings.heroPosterLink2 || '/shop?category=Jerseys';
+  const posterImg2 = siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80';
+  const posterTitle2 = siteSettings.heroPosterTitle2 || 'Jackets / Windcheaters';
+  const posterLink2 = siteSettings.heroPosterLink2 || '/shop?category=Jackets';
+
+  const posterImg3 = siteSettings.heroPosterImage3 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80';
+  const posterTitle3 = siteSettings.heroPosterTitle3 || 'New Drops Jerseys 🔥 🚀';
+  const posterLink3 = siteSettings.heroPosterLink3 || '/shop?category=Jerseys';
 
   const renderCollectionBox = (boxId: string) => {
     switch (boxId) {
@@ -31,36 +38,34 @@ export default function HomePage() {
         return (
           <section key="bento-banner" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-1 bg-[#CCFF00] p-8 rounded-3xl border border-black flex flex-col justify-between min-h-[340px] shadow-lg">
-                <span className="px-3.5 py-1 bg-black text-white font-mono text-[10px] uppercase font-bold w-max rounded-full">
-                  New Drops 🔥
-                </span>
-                <div className="space-y-2">
-                  <h2 className="text-5xl font-extrabold tracking-tighter text-black uppercase leading-none">
-                    NEW ARRIVAL
+              {/* Poster 1: New Arrivals */}
+              <Link
+                href={posterLink1}
+                className="relative md:col-span-1 p-8 rounded-3xl border border-black flex flex-col justify-between min-h-[340px] shadow-lg group overflow-hidden transition-all duration-500"
+                style={{
+                  backgroundImage: posterBg1 ? `url(${posterBg1})` : undefined,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundColor: posterBg1 ? '#000' : '#CCFF00',
+                }}
+              >
+                {posterBg1 && <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />}
+                <div className="relative z-10">
+                  <span className={`px-3.5 py-1 font-mono text-[10px] uppercase font-bold w-max rounded-full ${posterBg1 ? 'bg-amber-400 text-black' : 'bg-black text-white'}`}>
+                    {posterTag1}
+                  </span>
+                </div>
+                <div className="relative z-10 space-y-2">
+                  <h2 className={`text-5xl font-extrabold tracking-tighter uppercase leading-none ${posterBg1 ? 'text-white' : 'text-black'}`}>
+                    {posterTitle1}
                   </h2>
-                  <p className="font-mono text-xs font-bold text-black">
-                    www.nenoflex.in
+                  <p className={`font-mono text-xs font-bold ${posterBg1 ? 'text-amber-300' : 'text-black'}`}>
+                    {posterSubtitle1}
                   </p>
                 </div>
-              </div>
+              </Link>
 
-              <div className="relative md:col-span-1 h-[340px] bg-neutral-900 border border-black rounded-3xl overflow-hidden group shadow-lg">
-                <img
-                  src={posterImg1}
-                  alt={posterTitle1}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-black/40 p-6 flex flex-col justify-end">
-                  <Link
-                    href={posterLink1}
-                    className="px-4 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase w-max rounded-full hover:bg-white hover:text-black transition-all"
-                  >
-                    {posterTitle1}
-                  </Link>
-                </div>
-              </div>
-
+              {/* Poster 2: Jackets / Windcheaters */}
               <div className="relative md:col-span-1 h-[340px] bg-neutral-900 border border-black rounded-3xl overflow-hidden group shadow-lg">
                 <img
                   src={posterImg2}
@@ -73,6 +78,23 @@ export default function HomePage() {
                     className="px-4 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase w-max rounded-full hover:bg-white hover:text-black transition-all"
                   >
                     {posterTitle2}
+                  </Link>
+                </div>
+              </div>
+
+              {/* Poster 3: New Drops Jerseys */}
+              <div className="relative md:col-span-1 h-[340px] bg-neutral-900 border border-black rounded-3xl overflow-hidden group shadow-lg">
+                <img
+                  src={posterImg3}
+                  alt={posterTitle3}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-black/40 p-6 flex flex-col justify-end">
+                  <Link
+                    href={posterLink3}
+                    className="px-4 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase w-max rounded-full hover:bg-white hover:text-black transition-all"
+                  >
+                    {posterTitle3}
                   </Link>
                 </div>
               </div>
