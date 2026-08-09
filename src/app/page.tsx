@@ -11,11 +11,11 @@ import { BRANDS_LIST } from '@/data/products';
 export default function HomePage() {
   const { products, siteSettings } = useStore();
 
-  const jerseys = products.filter(p => p.category === 'Jerseys' || p.tags.includes('jersey'));
-  const fleeceAndJackets = products.filter(p => p.category === 'Jackets' || p.category === 'Sweatshirts');
+  // All products live display
+  const newDropsList = products.slice(0, 8);
+  const vaultGrailsList = products.slice(0, 4);
 
   const boxOrder = siteSettings.collectionBoxOrder || ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'];
-
   const tickerText = siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||';
 
   const renderCollectionBox = (boxId: string) => {
@@ -76,14 +76,17 @@ export default function HomePage() {
       case 'jerseys':
         return (
           <section key="jerseys" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-900">
-            <div className="my-8">
+            <div className="my-8 flex items-center justify-between">
               <h2 className="luxury-title text-3xl sm:text-4xl font-serif text-white flex items-center gap-2">
                 New Drops 🔥
               </h2>
+              <Link href="/shop" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
+                Shop All Vault <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-              {jerseys.map(product => (
+              {newDropsList.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
@@ -95,7 +98,7 @@ export default function HomePage() {
           <section key="jackets-fleeces" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-900">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-bold uppercase font-mono tracking-wider text-white">
-                Vintage Fleeces & Puffer Vests
+                Vintage Fleeces & Vault Grails
               </h2>
               <Link href="/shop" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
                 Shop All <ArrowRight className="w-3.5 h-3.5" />
@@ -103,7 +106,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-              {fleeceAndJackets.map(product => (
+              {vaultGrailsList.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
@@ -138,7 +141,7 @@ export default function HomePage() {
 
   return (
     <div className="relative min-h-screen bg-black text-white font-sans">
-      {/* SCREENSHOT 2 ALIGNED HERO SHOWCASE SECTION */}
+      {/* HERO SHOWCASE SECTION */}
       <section className="relative min-h-[85vh] bg-black text-white flex flex-col items-center justify-between px-4 text-center overflow-hidden py-12">
         <HeroCanvas />
 
@@ -159,7 +162,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CONTINUOUS MOVING TICKER BANNER (SCREENSHOT 2 ALIGNED) */}
+      {/* CONTINUOUS MOVING TICKER BANNER */}
       <div className="w-full bg-black border-y border-neutral-800 py-3 overflow-hidden font-mono text-[11px] uppercase tracking-widest text-neutral-300">
         <div className="whitespace-nowrap flex animate-marquee space-x-8">
           <span>{tickerText}</span>
