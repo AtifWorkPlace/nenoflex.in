@@ -103,6 +103,26 @@ export const SupabaseService = {
     }
   },
 
+  // Delete Product from Supabase PostgreSQL Database Table
+  deleteProduct: async (id: string): Promise<boolean> => {
+    const { url, key, isConfigured } = getSupabaseConfig();
+    if (!isConfigured) return false;
+
+    try {
+      const response = await fetch(`${url}/rest/v1/products?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': key!,
+          'Authorization': `Bearer ${key}`,
+        },
+      });
+
+      return response.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // Fetch Products from Supabase PostgreSQL Database Table globally
   fetchProducts: async (): Promise<Product[] | null> => {
     const { url, key, isConfigured } = getSupabaseConfig();

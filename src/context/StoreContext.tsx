@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (Targeted Single-Product Sync & Instant Global Visibility)
+  // Product CRUD (Bulletproof Real-Time Sync & Deletion)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -83,31 +83,7 @@ const initialFilters: FilterState = {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const DEFAULT_ORDERS: Order[] = [
-  {
-    id: 'U0YJEFD9P',
-    items: [{ product: INITIAL_PRODUCTS[0], selectedSize: 'L', quantity: 1 }],
-    subtotal: 649,
-    discount: 0,
-    shippingFee: 80,
-    total: 729,
-    status: 'Placed',
-    trackingCode: 'NF-6000149918',
-    courier: 'BlueDart Express Air',
-    shippingAddress: {
-      fullName: 'Atif',
-      email: 'flexnagaon@gmail.com',
-      phone: '+91 60001 49919',
-      address: 'Guwahati AS',
-      city: 'Guwahati',
-      state: 'Assam',
-      pincode: '781001',
-    },
-    paymentMethod: 'QR Pre-Paid',
-    createdAt: new Date().toISOString(),
-    estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  }
-];
+const DEFAULT_ORDERS: Order[] = [];
 
 const getInitialProductsSync = (): Product[] => {
   if (typeof window === 'undefined') return INITIAL_PRODUCTS;
@@ -115,7 +91,7 @@ const getInitialProductsSync = (): Product[] => {
     const saved = localStorage.getItem('nenoflex_products');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed.map(normalizeProductFromDb);
       }
     }
@@ -191,7 +167,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const saved = localStorage.getItem('nenoflex_products');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             setProducts(parsed.map(normalizeProductFromDb));
           }
         }
@@ -211,40 +187,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const fetchCloudAndSupabaseProducts = async () => {
       let fetchedList: Product[] | null = null;
 
-      // 1. Try Supabase Client Direct Fetch
       try {
         const supabaseData = await SupabaseService.fetchProducts();
-        if (supabaseData && supabaseData.length > 0) {
+        if (supabaseData) {
           fetchedList = supabaseData;
         }
       } catch (e) {}
 
-      // 2. Fallback to /api/products
       if (!fetchedList) {
         try {
           const res = await fetch('/api/products');
           if (res.ok) {
             const data = await res.json();
-            if (data.success && Array.isArray(data.products) && data.products.length > 0) {
+            if (data.success && Array.isArray(data.products)) {
               fetchedList = data.products;
             }
           }
         } catch (e) {}
       }
 
-      if (fetchedList && fetchedList.length > 0) {
+      if (fetchedList) {
         const normalized = fetchedList.map(normalizeProductFromDb);
-        setProducts(currentProds => {
-          const mergedMap = new Map<string, Product>();
-          normalized.forEach(p => mergedMap.set(p.id, p));
-          currentProds.forEach(p => mergedMap.set(p.id, p)); // Local user edits take priority
-
-          const mergedArray = Array.from(mergedMap.values());
-          try {
-            localStorage.setItem('nenoflex_products', JSON.stringify(mergedArray));
-          } catch (e) {}
-          return mergedArray;
-        });
+        setProducts(normalized);
+        try {
+          localStorage.setItem('nenoflex_products', JSON.stringify(normalized));
+        } catch (e) {}
       }
     };
 
@@ -258,7 +225,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const res = await fetch('/api/orders');
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
+          if (data.success && Array.isArray(data.orders)) {
             setOrders(data.orders);
             try {
               localStorage.setItem('nenoflex_orders', JSON.stringify(data.orders));
@@ -527,12 +494,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD (Targeted Single-Product Sync to guarantee <200KB payload size)
+  // Product CRUD
   const addProduct = (p: Product) => {
     const updated = [p, ...products.filter(item => item.id !== p.id)];
     saveProductsLocal(updated);
 
-    // Targeted Single-Product POST (~150KB payload, well under Vercel 4.5MB limit!)
     try {
       fetch('/api/products', {
         method: 'POST',
@@ -554,7 +520,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updatedList = products.map(p => p.id === updated.id ? updated : p);
     saveProductsLocal(updatedList);
 
-    // Targeted Single-Product POST (~150KB payload, well under Vercel 4.5MB limit!)
     try {
       fetch('/api/products', {
         method: 'POST',
@@ -585,21 +550,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }).catch(err => console.warn('API delete product sync:', err));
     } catch (e) {}
 
+    try {
+      SupabaseService.deleteProduct(id);
+    } catch (e) {}
+
     SecuritySuite.logAuditAction('DELETE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Deleted product ${found?.name || id}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Product deleted`);
   };
 
   const resetProductsToDefault = () => {
-    saveProductsLocal(INITIAL_PRODUCTS);
+    saveProductsLocal([]);
     try {
       fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_all', products: INITIAL_PRODUCTS }),
+        body: JSON.stringify({ action: 'set_all', products: [] }),
       }).catch(err => console.warn('API reset products sync:', err));
     } catch (e) {}
-    showToast('Reset product catalog to factory defaults');
+    showToast('Cleared product catalog');
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {
