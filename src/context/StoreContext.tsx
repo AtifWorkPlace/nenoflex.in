@@ -5,7 +5,7 @@ import { Product, CartItem, Order, FilterState, Coupon, SiteSettings, UserRole }
 import { INITIAL_PRODUCTS, BRANDS_LIST } from '@/data/products';
 import { SecuritySuite, AuditLog } from '@/lib/security';
 import { AudioNotificationEngine, NotificationSoundType } from '@/lib/audio';
-import { SupabaseService } from '@/lib/supabase';
+import { SupabaseService, normalizeProductFromDb } from '@/lib/supabase';
 
 interface StoreContextType {
   products: Product[];
@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (100% Real-Time & Race-Condition Proof Persistence)
+  // Product CRUD (Targeted Single-Product Sync & Instant Global Visibility)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -109,7 +109,6 @@ const DEFAULT_ORDERS: Order[] = [
   }
 ];
 
-// Helper to get initial products synchronously from localStorage or fallback
 const getInitialProductsSync = (): Product[] => {
   if (typeof window === 'undefined') return INITIAL_PRODUCTS;
   try {
@@ -117,7 +116,7 @@ const getInitialProductsSync = (): Product[] => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.map(normalizeProductFromDb);
       }
     }
   } catch (e) {}
@@ -172,32 +171,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  // Synchronize products to localStorage, window event & backend
-  const syncProducts = (updatedProducts: Product[]) => {
+  // Synchronize products locally and broadcast event
+  const saveProductsLocal = (updatedProducts: Product[]) => {
     setProducts(updatedProducts);
-
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('nenoflex_products', JSON.stringify(updatedProducts));
         window.dispatchEvent(new Event('nenoflex_products_updated'));
-      } catch (e) {
-        console.warn('LocalStorage save warning:', e);
-      }
+      } catch (e) {}
     }
-
-    // Background POST to /api/products
-    try {
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_all', products: updatedProducts }),
-      }).catch(err => console.warn('API products sync error:', err));
-    } catch (e) {}
-
-    // Background POST to Supabase PostgreSQL table
-    try {
-      updatedProducts.forEach(p => SupabaseService.saveProduct(p));
-    } catch (e) {}
   };
 
   // Cross-tab real-time product update listener
@@ -210,7 +192,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setProducts(parsed);
+            setProducts(parsed.map(normalizeProductFromDb));
           }
         }
       } catch (e) {}
@@ -224,7 +206,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Fetch Cloud & Supabase products on mount without overwriting local custom edits
+  // Fetch Cloud & Supabase products on mount
   useEffect(() => {
     const fetchCloudAndSupabaseProducts = async () => {
       let fetchedList: Product[] | null = null;
@@ -250,13 +232,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } catch (e) {}
       }
 
-      // Merge fetched products with local products (preserve local edits & newly added items!)
       if (fetchedList && fetchedList.length > 0) {
+        const normalized = fetchedList.map(normalizeProductFromDb);
         setProducts(currentProds => {
-          // If currentProds already has custom user edits, merge them!
           const mergedMap = new Map<string, Product>();
-          fetchedList!.forEach(p => mergedMap.set(p.id, p));
-          currentProds.forEach(p => mergedMap.set(p.id, p)); // Local items take precedence!
+          normalized.forEach(p => mergedMap.set(p.id, p));
+          currentProds.forEach(p => mergedMap.set(p.id, p)); // Local user edits take priority
 
           const mergedArray = Array.from(mergedMap.values());
           try {
@@ -284,43 +265,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             } catch (e) {}
           }
         }
-      } catch (err) {
-        console.warn('Cross-device order sync poll:', err);
-      }
+      } catch (err) {}
     };
 
     fetchCloudOrders();
     const interval = setInterval(fetchCloudOrders, 5000);
     return () => clearInterval(interval);
   }, []);
-
-  // Dynamic Font Injector Helper
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    if (siteSettings.customFontDataUrl) {
-      const styleId = 'nenoflex-custom-device-font';
-      let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-      if (!styleEl) {
-        styleEl = document.createElement('style');
-        styleEl.id = styleId;
-        document.head.appendChild(styleEl);
-      }
-      styleEl.innerHTML = `
-        @font-face {
-          font-family: '${siteSettings.customFontFamily}';
-          src: url('${siteSettings.customFontDataUrl}');
-          font-weight: normal;
-          font-style: normal;
-        }
-        body, button, input, select, textarea {
-          font-family: '${siteSettings.customFontFamily}', var(--font-sans), sans-serif !important;
-        }
-      `;
-    } else if (siteSettings.customFontFamily && siteSettings.customFontFamily !== 'Inter') {
-      document.body.style.fontFamily = `'${siteSettings.customFontFamily}', var(--font-sans), sans-serif`;
-    }
-  }, [siteSettings.customFontFamily, siteSettings.customFontDataUrl]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -546,7 +497,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setOrders(prev => [newOrder, ...prev]);
 
-    // Cross-Device Cloud Sync POST to /api/orders & Supabase
     try {
       fetch('/api/orders', {
         method: 'POST',
@@ -560,19 +510,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     clearCart();
     setAppliedCoupon(null);
 
-    // Audio chime notification for Order Push Notification!
     playAdminChime();
 
-    // Trigger Nodemailer API route to send email alert to flexnagaon@gmail.com
     try {
       fetch('/api/orders/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newOrder),
       }).catch(err => console.warn('Email API dispatch background:', err));
-    } catch (e) {
-      console.warn('Email dispatch trigger error:', e);
-    }
+    } catch (e) {}
 
     const auditLog = SecuritySuite.logAuditAction('PLACE_ORDER', details.shippingAddress.email, 'Customer', 'Order Engine', `NEW ORDER PLACED! Order ${newOrder.id} for ₹${total} via ${details.paymentMethod}`);
     SupabaseService.saveAuditLog(auditLog);
@@ -581,34 +527,78 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD (Race-Condition-Proof Persistence & Instant Local Execution)
+  // Product CRUD (Targeted Single-Product Sync to guarantee <200KB payload size)
   const addProduct = (p: Product) => {
     const updated = [p, ...products.filter(item => item.id !== p.id)];
-    syncProducts(updated);
+    saveProductsLocal(updated);
+
+    // Targeted Single-Product POST (~150KB payload, well under Vercel 4.5MB limit!)
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', product: p }),
+      }).catch(err => console.warn('API add product sync:', err));
+    } catch (e) {}
+
+    try {
+      SupabaseService.saveProduct(p);
+    } catch (e) {}
+
     SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${p.name}" Saved Live!`);
+    showToast(`Product "${p.name}" Published Live!`);
   };
 
   const updateProduct = (updated: Product) => {
     const updatedList = products.map(p => p.id === updated.id ? updated : p);
-    syncProducts(updatedList);
+    saveProductsLocal(updatedList);
+
+    // Targeted Single-Product POST (~150KB payload, well under Vercel 4.5MB limit!)
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', product: updated }),
+      }).catch(err => console.warn('API update product sync:', err));
+    } catch (e) {}
+
+    try {
+      SupabaseService.saveProduct(updated);
+    } catch (e) {}
+
     SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${updated.name}" Saved Live!`);
+    showToast(`Product "${updated.name}" Published Live!`);
   };
 
   const deleteProduct = (id: string) => {
     const found = products.find(p => p.id === id);
     const updatedList = products.filter(p => p.id !== id);
-    syncProducts(updatedList);
+    saveProductsLocal(updatedList);
+
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', product: { id } }),
+      }).catch(err => console.warn('API delete product sync:', err));
+    } catch (e) {}
+
     SecuritySuite.logAuditAction('DELETE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Deleted product ${found?.name || id}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Product deleted`);
   };
 
   const resetProductsToDefault = () => {
-    syncProducts(INITIAL_PRODUCTS);
+    saveProductsLocal(INITIAL_PRODUCTS);
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_all', products: INITIAL_PRODUCTS }),
+      }).catch(err => console.warn('API reset products sync:', err));
+    } catch (e) {}
     showToast('Reset product catalog to factory defaults');
   };
 

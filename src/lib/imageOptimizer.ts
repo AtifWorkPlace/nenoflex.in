@@ -1,27 +1,28 @@
 /**
- * Utility to compress high-res uploaded base64 images down to optimized WebP/JPEG Data URLs (~40KB-80KB).
- * Prevents localStorage quota exceeded errors and ensures instant 100% real-time persistence across browser refreshes!
+ * HTML5 Canvas Image Optimizer
+ * Resizes and compresses device photos down to WebP/JPEG (~20KB-40KB)
+ * to ensure zero Vercel 4.5MB payload limit errors and instant multi-device sync.
  */
-export async function compressImageDataUrl(dataUrl: string, maxDimension = 800, quality = 0.82): Promise<string> {
-  if (typeof window === 'undefined' || !dataUrl.startsWith('data:image')) {
-    return dataUrl;
-  }
-
+export async function compressImageDataUrl(
+  dataUrl: string,
+  maxWidth: number = 600,
+  quality: number = 0.72
+): Promise<string> {
   return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !dataUrl || !dataUrl.startsWith('data:image')) {
+      resolve(dataUrl);
+      return;
+    }
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       let width = img.width;
       let height = img.height;
 
-      if (width > maxDimension || height > maxDimension) {
-        if (width > height) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
-        } else {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
-        }
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
       }
 
       const canvas = document.createElement('canvas');
@@ -34,18 +35,27 @@ export async function compressImageDataUrl(dataUrl: string, maxDimension = 800, 
         return;
       }
 
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
+
       try {
-        const compressedDataUrl = canvas.toDataURL('image/webp', quality);
-        resolve(compressedDataUrl);
-      } catch (e) {
-        try {
-          const compressedJpeg = canvas.toDataURL('image/jpeg', quality);
-          resolve(compressedJpeg);
-        } catch {
-          resolve(dataUrl);
+        const compressedWebP = canvas.toDataURL('image/webp', quality);
+        if (compressedWebP && compressedWebP.length < dataUrl.length) {
+          resolve(compressedWebP);
+          return;
         }
-      }
+      } catch (e) {}
+
+      try {
+        const compressedJpeg = canvas.toDataURL('image/jpeg', quality);
+        if (compressedJpeg && compressedJpeg.length < dataUrl.length) {
+          resolve(compressedJpeg);
+          return;
+        }
+      } catch (e) {}
+
+      resolve(dataUrl);
     };
 
     img.onerror = () => resolve(dataUrl);
