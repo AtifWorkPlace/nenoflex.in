@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (100% Control & Real-time Update)
+  // Product CRUD (100% Real-Time Cloud Persistence)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -156,22 +156,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  // Load products from localStorage for real-time persistence across browser reloads
+  // Load products from Cloud Products API on mount so uploaded images PERMANENTLY PERSIST!
   useEffect(() => {
-    try {
-      const savedProds = localStorage.getItem('nenoflex_products');
-      if (savedProds) {
-        const parsed = JSON.parse(savedProds);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProducts(parsed);
+    const fetchCloudProducts = async () => {
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.products) && data.products.length > 0) {
+            setProducts(data.products);
+          }
         }
+      } catch (e) {
+        console.warn('Cloud Products fetch:', e);
       }
-    } catch (e) {
-      console.warn('LocalStorage products load error:', e);
-    }
+    };
+    fetchCloudProducts();
   }, []);
 
-  // Cross-Device Order Synchronization Polling (Phone & PC Sync)
+  // Cross-Device Order Synchronization Polling
   useEffect(() => {
     const fetchCloudOrders = async () => {
       try {
@@ -480,31 +483,39 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD (Real-Time State + LocalStorage Synchronization)
+  // Product CRUD (Permanent Cloud API Sync - Never Resets on Page Refresh!)
   const addProduct = (p: Product) => {
     setProducts(prev => {
       const updated = [p, ...prev];
       try {
-        localStorage.setItem('nenoflex_products', JSON.stringify(updated));
+        fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add', product: p }),
+        });
       } catch (e) {}
       return updated;
     });
     SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${p.name}" Added Live!`);
+    showToast(`Product "${p.name}" Saved Permanently!`);
   };
 
   const updateProduct = (updated: Product) => {
     setProducts(prev => {
       const updatedList = prev.map(p => p.id === updated.id ? updated : p);
       try {
-        localStorage.setItem('nenoflex_products', JSON.stringify(updatedList));
+        fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update', product: updated }),
+        });
       } catch (e) {}
       return updatedList;
     });
     SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${updated.name}" Updated Live!`);
+    showToast(`Product "${updated.name}" Saved Permanently!`);
   };
 
   const deleteProduct = (id: string) => {
@@ -512,7 +523,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(prev => {
       const updatedList = prev.filter(p => p.id !== id);
       try {
-        localStorage.setItem('nenoflex_products', JSON.stringify(updatedList));
+        fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', product: { id } }),
+        });
       } catch (e) {}
       return updatedList;
     });

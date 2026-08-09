@@ -7,7 +7,7 @@ git init
 git branch -M main
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
-git commit -m "Verified 100% clean build - Real-time image upload sync & 10-image gallery limit - NenoFlex Official Web (nenoflex.in)"
+git commit -m "Cloud Products Storage API (/api/products) & Nike-styled PDP & Outer PDP layout upgrade - NenoFlex Official Web (nenoflex.in)"
 git checkout -b dev
 git checkout main
 git push -u origin main
