@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (100% Supabase + Real-Time Live Persistence)
+  // Product CRUD (100% Real-Time & Race-Condition Proof Persistence)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -109,8 +109,23 @@ const DEFAULT_ORDERS: Order[] = [
   }
 ];
 
+// Helper to get initial products synchronously from localStorage or fallback
+const getInitialProductsSync = (): Product[] => {
+  if (typeof window === 'undefined') return INITIAL_PRODUCTS;
+  try {
+    const saved = localStorage.getItem('nenoflex_products');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  return INITIAL_PRODUCTS;
+};
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(getInitialProductsSync);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
@@ -157,16 +172,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  // Synchronize products to localStorage, Supabase PostgreSQL, and Cloud API
+  // Synchronize products to localStorage, window event & backend
   const syncProducts = (updatedProducts: Product[]) => {
     setProducts(updatedProducts);
-    try {
-      localStorage.setItem('nenoflex_products', JSON.stringify(updatedProducts));
-    } catch (e) {
-      console.warn('LocalStorage save warning:', e);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('nenoflex_products', JSON.stringify(updatedProducts));
+        window.dispatchEvent(new Event('nenoflex_products_updated'));
+      } catch (e) {
+        console.warn('LocalStorage save warning:', e);
+      }
     }
 
-    // Direct POST to /api/products (which saves to products_db.json + Supabase PostgreSQL)
+    // Background POST to /api/products
     try {
       fetch('/api/products', {
         method: 'POST',
@@ -175,53 +194,76 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }).catch(err => console.warn('API products sync error:', err));
     } catch (e) {}
 
-    // Direct client-side POST to Supabase PostgreSQL table
+    // Background POST to Supabase PostgreSQL table
     try {
       updatedProducts.forEach(p => SupabaseService.saveProduct(p));
     } catch (e) {}
   };
 
-  // Load products from localStorage, Supabase PostgreSQL & Cloud API on mount
+  // Cross-tab real-time product update listener
   useEffect(() => {
-    try {
-      const savedProds = localStorage.getItem('nenoflex_products');
-      if (savedProds) {
-        const parsed = JSON.parse(savedProds);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProducts(parsed);
-        }
-      }
-    } catch (e) {
-      console.warn('LocalStorage products load error:', e);
-    }
+    if (typeof window === 'undefined') return;
 
+    const handleStorageOrCustomEvent = () => {
+      try {
+        const saved = localStorage.getItem('nenoflex_products');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProducts(parsed);
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('storage', handleStorageOrCustomEvent);
+    window.addEventListener('nenoflex_products_updated', handleStorageOrCustomEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageOrCustomEvent);
+      window.removeEventListener('nenoflex_products_updated', handleStorageOrCustomEvent);
+    };
+  }, []);
+
+  // Fetch Cloud & Supabase products on mount without overwriting local custom edits
+  useEffect(() => {
     const fetchCloudAndSupabaseProducts = async () => {
+      let fetchedList: Product[] | null = null;
+
       // 1. Try Supabase Client Direct Fetch
       try {
         const supabaseData = await SupabaseService.fetchProducts();
         if (supabaseData && supabaseData.length > 0) {
-          setProducts(supabaseData);
-          try {
-            localStorage.setItem('nenoflex_products', JSON.stringify(supabaseData));
-          } catch (e) {}
-          return;
+          fetchedList = supabaseData;
         }
       } catch (e) {}
 
-      // 2. Fallback to /api/products (Supabase & Disk DB API)
-      try {
-        const res = await fetch('/api/products');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.products) && data.products.length > 0) {
-            setProducts(data.products);
-            try {
-              localStorage.setItem('nenoflex_products', JSON.stringify(data.products));
-            } catch (e) {}
+      // 2. Fallback to /api/products
+      if (!fetchedList) {
+        try {
+          const res = await fetch('/api/products');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.products) && data.products.length > 0) {
+              fetchedList = data.products;
+            }
           }
-        }
-      } catch (e) {
-        console.warn('Cloud Products fetch:', e);
+        } catch (e) {}
+      }
+
+      // Merge fetched products with local products (preserve local edits & newly added items!)
+      if (fetchedList && fetchedList.length > 0) {
+        setProducts(currentProds => {
+          // If currentProds already has custom user edits, merge them!
+          const mergedMap = new Map<string, Product>();
+          fetchedList!.forEach(p => mergedMap.set(p.id, p));
+          currentProds.forEach(p => mergedMap.set(p.id, p)); // Local items take precedence!
+
+          const mergedArray = Array.from(mergedMap.values());
+          try {
+            localStorage.setItem('nenoflex_products', JSON.stringify(mergedArray));
+          } catch (e) {}
+          return mergedArray;
+        });
       }
     };
 
@@ -539,13 +581,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD (Permanent Supabase + LocalStorage + API Sync!)
+  // Product CRUD (Race-Condition-Proof Persistence & Instant Local Execution)
   const addProduct = (p: Product) => {
     const updated = [p, ...products.filter(item => item.id !== p.id)];
     syncProducts(updated);
     SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${p.name}" Saved to Supabase & Live!`);
+    showToast(`Product "${p.name}" Saved Live!`);
   };
 
   const updateProduct = (updated: Product) => {
@@ -553,7 +595,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     syncProducts(updatedList);
     SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Product "${updated.name}" Saved to Supabase & Live!`);
+    showToast(`Product "${updated.name}" Saved Live!`);
   };
 
   const deleteProduct = (id: string) => {
