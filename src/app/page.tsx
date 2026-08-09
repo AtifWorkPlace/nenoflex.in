@@ -9,7 +9,7 @@ import { useStore } from '@/context/StoreContext';
 import { BRANDS_LIST } from '@/data/products';
 
 export default function HomePage() {
-  const { products, siteSettings } = useStore();
+  const { products, siteSettings, isLoadingCatalog, catalogError, refreshCatalog } = useStore();
 
   const newDropsList = products.slice(0, 8);
   const vaultGrailsList = products.slice(0, 4);
@@ -114,11 +114,40 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-              {newDropsList.map(product => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+            {/* Loading Skeleton */}
+            {isLoadingCatalog && newDropsList.length === 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="animate-pulse rounded-2xl bg-neutral-900 border border-neutral-800">
+                    <div className="aspect-[3/4] bg-neutral-800 rounded-t-2xl" />
+                    <div className="p-4 space-y-3">
+                      <div className="h-3 bg-neutral-800 rounded w-3/4" />
+                      <div className="h-3 bg-neutral-800 rounded w-1/2" />
+                      <div className="h-4 bg-neutral-800 rounded w-1/3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error Retry */}
+            {catalogError && newDropsList.length === 0 && (
+              <div className="text-center py-16 space-y-4">
+                <p className="text-neutral-400 font-mono text-sm">Unable to load catalog. Please try again.</p>
+                <button onClick={() => refreshCatalog()} className="px-6 py-2.5 rounded-full bg-white text-black font-mono text-xs font-bold uppercase hover:bg-neutral-200 transition-colors">
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Products Grid */}
+            {newDropsList.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+                {newDropsList.map(product => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            )}
           </section>
         );
 

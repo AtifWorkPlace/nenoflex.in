@@ -163,9 +163,15 @@ const getInitialWishlistSync = (): string[] => {
   return [];
 };
 
-export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+interface StoreProviderProps {
+  children: React.ReactNode;
+  initialProducts?: Product[];
+  initialSettings?: SiteSettings | null;
+}
+
+export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialProducts, initialSettings }) => {
+  const [products, setProducts] = useState<Product[]>(initialProducts || []);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(initialSettings ? { ...DEFAULT_SITE_SETTINGS, ...initialSettings } : DEFAULT_SITE_SETTINGS);
   const [wishlist, setWishlist] = useState<string[]>(getInitialWishlistSync);
   const [cart, setCart] = useState<CartItem[]>(getInitialCartSync);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
@@ -176,7 +182,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(true);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(!initialProducts || initialProducts.length === 0);
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
   const [coupons, setCoupons] = useState<Coupon[]>([
@@ -232,7 +238,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
+    // Skip initial fetch if server already provided data
+    if (initialProducts && initialProducts.length > 0) return;
     refreshCatalog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch Orders for Admin

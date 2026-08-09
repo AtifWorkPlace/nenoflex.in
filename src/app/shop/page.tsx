@@ -8,7 +8,7 @@ import { BRANDS_LIST } from '@/data/products';
 import { BrandName, MainCategory } from '@/types';
 
 export default function ShopPage() {
-  const { products, filters, setFilters } = useStore();
+  const { products, filters, setFilters, isLoadingCatalog, catalogError, refreshCatalog } = useStore();
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
 
@@ -239,7 +239,30 @@ export default function ShopPage() {
           </div>
 
           {/* Product Grid */}
-          {sortedProducts.length === 0 ? (
+          {isLoadingCatalog && sortedProducts.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="animate-pulse rounded-2xl bg-neutral-100 border border-neutral-200">
+                  <div className="aspect-[3/4] bg-neutral-200 rounded-t-2xl" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-3 bg-neutral-200 rounded w-3/4" />
+                    <div className="h-3 bg-neutral-200 rounded w-1/2" />
+                    <div className="h-4 bg-neutral-200 rounded w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : catalogError && sortedProducts.length === 0 ? (
+            <div className="p-16 bg-neutral-50 border border-neutral-200 text-center space-y-3">
+              <p className="text-neutral-500 text-xs font-mono">Unable to load catalog. Please try again.</p>
+              <button
+                onClick={() => refreshCatalog()}
+                className="px-6 py-2 bg-black text-white font-bold text-xs uppercase"
+              >
+                Retry
+              </button>
+            </div>
+          ) : sortedProducts.length === 0 ? (
             <div className="p-16 bg-neutral-50 border border-neutral-200 text-center space-y-3">
               <p className="text-neutral-500 text-xs font-mono">No vault items match your exact filters.</p>
               <button

@@ -9,7 +9,20 @@ export interface AdminSession {
   iat: number;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || 'nenoflex_production_jwt_secret_9981273912739';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  // In development, allow fallback to Supabase keys for convenience
+  if (process.env.NODE_ENV !== 'production') {
+    const devFallback = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    if (devFallback) return devFallback;
+  }
+  // In production, this will cause admin auth to fail securely
+  console.error('[AUTH CRITICAL]: JWT_SECRET environment variable is not set. Admin authentication will fail.');
+  return '';
+}
+
+const JWT_SECRET = getJwtSecret();
 
 export const ServerAuth = {
   // Generate Cryptographically Signed HMAC SHA-256 JWT Token

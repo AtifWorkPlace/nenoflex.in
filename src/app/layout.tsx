@@ -6,6 +6,7 @@ import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { QuickViewModal } from '@/components/QuickViewModal';
 import { PromoModal } from '@/components/PromoModal';
+import { getInitialPageData } from '@/lib/server-data';
 
 export const metadata: Metadata = {
   title: 'NenoFlex | Premium Imported Thrift & Streetwear Vault',
@@ -20,15 +21,23 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+// Next.js ISR: Revalidate catalog every 30 seconds for fresh data
+// Admin mutations will invalidate on demand
+export const revalidate = 30;
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Server-side: Fetch initial catalog data BEFORE rendering any HTML
+  // This eliminates the empty-catalog flash on page load/refresh
+  const { products, siteSettings } = await getInitialPageData();
+
   return (
     <html lang="en" className="dark scroll-smooth" suppressHydrationWarning>
       <body className="bg-[#0D0D0D] text-white min-h-screen flex flex-col font-sans antialiased" suppressHydrationWarning>
-        <StoreProvider>
+        <StoreProvider initialProducts={products} initialSettings={siteSettings}>
           <Navbar />
           <main className="flex-1">{children}</main>
           <CartDrawer />

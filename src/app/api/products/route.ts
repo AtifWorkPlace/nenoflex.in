@@ -16,28 +16,39 @@ function validateProductSchema(prod: any): { valid: boolean; errors: string[] } 
 }
 
 export async function GET() {
+  const startTime = Date.now();
   try {
-    const products = await SupabaseServerService.fetchProducts();
-    const siteSettings = await SupabaseServerService.fetchSettings();
+    // Fetch products and settings concurrently
+    const [products, siteSettings] = await Promise.all([
+      SupabaseServerService.fetchProducts(),
+      SupabaseServerService.fetchSettings(),
+    ]);
+
+    const fetchTimeMs = Date.now() - startTime;
 
     return NextResponse.json(
       {
         success: true,
         products,
         siteSettings,
+        meta: { fetchTimeMs, productCount: products.length },
       },
       {
         headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
         },
       }
     );
-  } catch (error) {
+  } catch (error: any) {
+    const fetchTimeMs = Date.now() - startTime;
+    const isDbError = error?.message?.includes('DATABASE_');
     return NextResponse.json(
-      { success: false, message: 'Failed to fetch catalog' },
-      { status: 500 }
+      {
+        success: false,
+        message: isDbError ? 'Database temporarily unavailable' : 'Failed to fetch catalog',
+        meta: { fetchTimeMs },
+      },
+      { status: isDbError ? 503 : 500 }
     );
   }
 }
