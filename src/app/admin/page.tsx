@@ -26,7 +26,10 @@ import {
   Image as ImageIcon,
   Save,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  ArrowUp,
+  ArrowDown,
+  Link as LinkIcon
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
@@ -53,6 +56,9 @@ export default function EnterpriseAdminDashboard() {
     addBrand,
     deleteBrand,
     uploadCustomFont,
+    addFooterQuickLink,
+    deleteFooterQuickLink,
+    reorderFooterQuickLinks,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -68,8 +74,20 @@ export default function EnterpriseAdminDashboard() {
   const [heroTitleText, setHeroTitleText] = useState(siteSettings.heroTitle);
   const [heroSubText, setHeroSubText] = useState(siteSettings.heroSubtitle);
   const [heroCtaText, setHeroCtaText] = useState(siteSettings.heroCtaText || 'Shop now');
-  const [heroSecondaryCtaText, setHeroSecondaryCtaText] = useState(siteSettings.heroSecondaryCtaText || 'Explore Vault');
   const [heroTickerText, setHeroTickerText] = useState(siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||');
+
+  // Poster Banners Customizer
+  const [posterImg1, setPosterImg1] = useState(siteSettings.heroPosterImage1 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80');
+  const [posterTitle1, setPosterTitle1] = useState(siteSettings.heroPosterTitle1 || 'Jackets / Windcheaters');
+  const [posterLink1, setPosterLink1] = useState(siteSettings.heroPosterLink1 || '/shop?category=Jackets');
+
+  const [posterImg2, setPosterImg2] = useState(siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80');
+  const [posterTitle2, setPosterTitle2] = useState(siteSettings.heroPosterTitle2 || 'New Drops Jerseys 🔥 🚀');
+  const [posterLink2, setPosterLink2] = useState(siteSettings.heroPosterLink2 || '/shop?category=Jerseys');
+
+  // Footer Quick Links Customizer
+  const [newLinkLabel, setNewLinkLabel] = useState('');
+  const [newLinkHref, setNewLinkHref] = useState('');
 
   // Typography & Device Font Customizer
   const [fontFamilyName, setFontFamilyName] = useState(siteSettings.customFontFamily || 'Inter');
@@ -169,7 +187,7 @@ export default function EnterpriseAdminDashboard() {
     );
   }
 
-  // Multi-File Device Image Upload Handler (Auto-Compressed + Instant Preview)
+  // Multi-File Device Image Upload Handler
   const handleMultiDeviceImageUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
@@ -191,7 +209,7 @@ export default function EnterpriseAdminDashboard() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const rawDataUrl = e.target?.result as string;
-        const compressedDataUrl = await compressImageDataUrl(rawDataUrl, 800, 0.82);
+        const compressedDataUrl = await compressImageDataUrl(rawDataUrl, 600, 0.72);
         newImageUrls.push(compressedDataUrl);
         uploadedCount++;
 
@@ -208,7 +226,6 @@ export default function EnterpriseAdminDashboard() {
               gallery: updatedGallery,
             };
             setEditingProduct(updated);
-            // Live auto-sync edit
             updateProduct(updated);
           } else {
             setNewProd(prev => ({
@@ -269,8 +286,13 @@ export default function EnterpriseAdminDashboard() {
       heroTitle: heroTitleText,
       heroSubtitle: heroSubText,
       heroCtaText,
-      heroSecondaryCtaText,
       heroTickerText,
+      heroPosterImage1: posterImg1,
+      heroPosterTitle1: posterTitle1,
+      heroPosterLink1: posterLink1,
+      heroPosterImage2: posterImg2,
+      heroPosterTitle2: posterTitle2,
+      heroPosterLink2: posterLink2,
       footerTagline,
       footerPhone,
       footerWhatsappUrl,
@@ -339,6 +361,18 @@ export default function EnterpriseAdminDashboard() {
     }
   };
 
+  const currentFooterLinks = siteSettings.footerQuickLinks || [];
+
+  const moveFooterLink = (index: number, direction: 'up' | 'down') => {
+    const list = [...currentFooterLinks];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[index];
+    list[index] = list[targetIdx];
+    list[targetIdx] = temp;
+    reorderFooterQuickLinks(list);
+  };
+
   const activeGallery = editingProduct ? (editingProduct.gallery || []) : (newProd.gallery || []);
 
   return (
@@ -357,7 +391,7 @@ export default function EnterpriseAdminDashboard() {
           <h1 className="luxury-heading text-2xl sm:text-3xl font-bold text-white mt-2">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">Add products, upload images (up to 10), and publish live to website instantly.</p>
+          <p className="text-xs text-neutral-400">Add products, custom footer links, and poster images live.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -389,7 +423,7 @@ export default function EnterpriseAdminDashboard() {
           { id: 'font', label: '3. Device Font Customizer', icon: Type },
           { id: 'promo', label: '4. Promo Pop-up Banner', icon: Eye },
           { id: 'sound', label: '5. Order Sound Chime', icon: Volume2 },
-          { id: 'banner', label: '6. Site Banner & Social Redirects', icon: Settings },
+          { id: 'banner', label: '6. Banners, Posters & Footer Links Customizer', icon: Settings },
           { id: 'coupons', label: `7. Coupons (${coupons.length})`, icon: Tag },
           { id: 'orders', label: `8. Orders (${orders.length})`, icon: TrendingUp },
           { id: 'audit', label: `9. Audit Logs (${auditLogs.length})`, icon: FileText },
@@ -411,7 +445,7 @@ export default function EnterpriseAdminDashboard() {
         })}
       </div>
 
-      {/* TAB 1: SHOPIFY-STYLE PRODUCTS MANAGER */}
+      {/* TAB 1: PRODUCTS MANAGER */}
       {activeTab === 'products' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -423,9 +457,9 @@ export default function EnterpriseAdminDashboard() {
               <button
                 onClick={resetProductsToDefault}
                 className="px-3.5 py-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-mono text-xs flex items-center gap-1.5 cursor-pointer"
-                title="Reset to initial sample items"
+                title="Clear catalog"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset Defaults
+                <RotateCcw className="w-3.5 h-3.5" /> Clear All Products
               </button>
               <button
                 onClick={() => {
@@ -456,62 +490,68 @@ export default function EnterpriseAdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800">
-                {products.map(p => (
-                  <tr key={p.id} className="hover:bg-neutral-900 transition-colors">
-                    <td className="py-3 px-4 font-mono text-[11px] text-amber-400">
-                      <div>{p.sku}</div>
-                      <div className="text-[9px] text-neutral-500">{p.barcode}</div>
-                    </td>
-                    <td className="py-3 px-4 flex items-center gap-3 font-semibold text-white">
-                      <img src={p.image} alt="Thumb" className="w-10 h-12 object-cover rounded-lg bg-neutral-900" />
-                      <span className="truncate max-w-xs">{p.name}</span>
-                    </td>
-                    <td className="py-3 px-4 font-mono">{p.brand}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-white">₹{p.price}</td>
-                    <td className="py-3 px-4 font-mono text-emerald-400 font-bold">
-                      {p.conditionScore} / 10 ({p.conditionGrade})
-                    </td>
-                    <td className="py-3 px-4 font-mono text-xs text-amber-400">
-                      {(p.gallery || []).length} / 10 imgs
-                    </td>
-                    <td className="py-3 px-4 font-mono">{p.stockCount}</td>
-                    <td className="py-3 px-4">
-                      <button
-                        onClick={() => updateProduct({ ...p, stockCount: p.stockCount > 0 ? 0 : 2 })}
-                        className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase cursor-pointer ${
-                          p.stockCount <= 0 ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
-                        }`}
-                      >
-                        {p.stockCount <= 0 ? 'SOLD OUT' : 'IN STOCK'}
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-right space-x-2">
-                      <button
-                        onClick={() => {
-                          setEditingProduct(p);
-                        }}
-                        className="p-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white cursor-pointer"
-                        title="Edit Product"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteProduct(p.id)}
-                        className="p-2 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white cursor-pointer"
-                        title="Delete Product"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                {products.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-neutral-500 font-mono text-xs">
+                      Catalog is empty. Click <strong className="text-white">"+ New Product"</strong> to add your first live product!
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  products.map(p => (
+                    <tr key={p.id} className="hover:bg-neutral-900 transition-colors">
+                      <td className="py-3 px-4 font-mono text-[11px] text-amber-400">
+                        <div>{p.sku}</div>
+                        <div className="text-[9px] text-neutral-500">{p.barcode}</div>
+                      </td>
+                      <td className="py-3 px-4 flex items-center gap-3 font-semibold text-white">
+                        <img src={p.image} alt="Thumb" className="w-10 h-12 object-cover rounded-lg bg-neutral-900" />
+                        <span className="truncate max-w-xs">{p.name}</span>
+                      </td>
+                      <td className="py-3 px-4 font-mono">{p.brand}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-white">₹{p.price}</td>
+                      <td className="py-3 px-4 font-mono text-emerald-400 font-bold">
+                        {p.conditionScore} / 10 ({p.conditionGrade})
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-amber-400">
+                        {(p.gallery || []).length} / 10 imgs
+                      </td>
+                      <td className="py-3 px-4 font-mono">{p.stockCount}</td>
+                      <td className="py-3 px-4">
+                        <button
+                          onClick={() => updateProduct({ ...p, stockCount: p.stockCount > 0 ? 0 : 2 })}
+                          className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase cursor-pointer ${
+                            p.stockCount <= 0 ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                          }`}
+                        >
+                          {p.stockCount <= 0 ? 'SOLD OUT' : 'IN STOCK'}
+                        </button>
+                      </td>
+                      <td className="py-3 px-4 text-right space-x-2">
+                        <button
+                          onClick={() => setEditingProduct(p)}
+                          className="p-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white cursor-pointer"
+                          title="Edit Product"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteProduct(p.id)}
+                          className="p-2 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white cursor-pointer"
+                          title="Delete Product"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* TAB 2: CUSTOMIZABLE CATALOG CATEGORIES & BRANDS */}
+      {/* TAB 2: CATALOG CATEGORIES & BRANDS */}
       {activeTab === 'catalog' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
@@ -608,7 +648,7 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: TYPOGRAPHY & LOCAL DEVICE FONT FILE UPLOADER */}
+      {/* TAB 3: TYPOGRAPHY & FONT UPLOADER */}
       {activeTab === 'font' && (
         <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
           <div>
@@ -835,121 +875,256 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 6: SITE BANNER, SOCIAL REDIRECTS & NODEMAILER GMAIL CONFIG */}
+      {/* TAB 6: HOMEPAGE POSTERS, BANNERS & FOOTER QUICK LINKS CUSTOMIZER */}
       {activeTab === 'banner' && (
-        <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white font-mono uppercase">101% Site Banner, Social Links & Nodemailer Config</h2>
-            <button
-              onClick={() => sendTestEmail(smtpPassSecret)}
-              className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs font-mono uppercase flex items-center gap-2 shadow-lg cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5" /> 📧 Send Test Email to flexnagaon@gmail.com
-            </button>
+        <div className="space-y-8 font-sans">
+          {/* Section 1: Homepage Hero Poster Banners */}
+          <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white font-mono uppercase text-amber-400 flex items-center gap-2">
+                <Sparkles className="w-5 h-5" /> Homepage Hero Poster Banners & New Arrivals Image Customizer
+              </h2>
+              <p className="text-xs text-neutral-400 mt-1">
+                Upload or paste image URLs for your main Homepage Hero Posters ("Jackets / Windcheaters", "New Drops Jerseys 🔥").
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-6 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Poster Box 1 */}
+                <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4">
+                  <h3 className="font-bold text-sm text-white font-mono uppercase">Poster Banner #1</h3>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Image URL / Upload Image</label>
+                    <input
+                      type="text"
+                      value={posterImg1}
+                      onChange={e => setPosterImg1(e.target.value)}
+                      placeholder="Paste Image URL or data URL"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Link Button Title</label>
+                    <input
+                      type="text"
+                      value={posterTitle1}
+                      onChange={e => setPosterTitle1(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Link Redirect URL</label>
+                    <input
+                      type="text"
+                      value={posterLink1}
+                      onChange={e => setPosterLink1(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Poster Box 2 */}
+                <div className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4">
+                  <h3 className="font-bold text-sm text-white font-mono uppercase">Poster Banner #2</h3>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Image URL / Upload Image</label>
+                    <input
+                      type="text"
+                      value={posterImg2}
+                      onChange={e => setPosterImg2(e.target.value)}
+                      placeholder="Paste Image URL or data URL"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Link Button Title</label>
+                    <input
+                      type="text"
+                      value={posterTitle2}
+                      onChange={e => setPosterTitle2(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-400 font-mono mb-1">Link Redirect URL</label>
+                    <input
+                      type="text"
+                      value={posterLink2}
+                      onChange={e => setPosterLink2(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 font-mono mb-1">Continuous Moving Ticker Banner Text</label>
+                <input
+                  type="text"
+                  value={heroTickerText}
+                  onChange={e => setHeroTickerText(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-amber-400 font-mono"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-neutral-400 font-mono mb-1">WhatsApp Number</label>
+                  <input
+                    type="text"
+                    value={footerPhone}
+                    onChange={e => setFooterPhone(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-neutral-400 font-mono mb-1">WhatsApp Redirect Link URL</label>
+                  <input
+                    type="text"
+                    value={footerWhatsappUrl}
+                    onChange={e => setFooterWhatsappUrl(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-emerald-400 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-neutral-400 font-mono mb-1">Instagram Handle</label>
+                  <input
+                    type="text"
+                    value={footerInstagram}
+                    onChange={e => setFooterInstagram(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-neutral-400 font-mono mb-1">Instagram Redirect Link URL</label>
+                  <input
+                    type="text"
+                    value={footerInstagramUrl}
+                    onChange={e => setFooterInstagramUrl(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-pink-400 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 font-mono mb-1">Footer Copyright Notice</label>
+                <input
+                  type="text"
+                  value={footerCopyright}
+                  onChange={e => setFooterCopyright(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer shadow-lg"
+              >
+                Save All Banners, Posters & Social Redirects Live
+              </button>
+            </form>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="space-y-4 text-xs max-w-2xl">
+          {/* Section 2: Footer Quick Links List Re-align & Customizer */}
+          <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white font-mono uppercase text-emerald-400 flex items-center gap-2">
+                <LinkIcon className="w-5 h-5" /> Footer Quick Links Manager (Add, Delete & Re-align Links)
+              </h2>
+              <p className="text-xs text-neutral-400 mt-1">
+                Customize the Footer Quick Links ("New Arrivals", "New Drops 🔥", "Vintage Fleeces & Vault Grails"). Move links up or down to re-align!
+              </p>
+            </div>
+
+            {/* Add New Quick Link Form */}
             <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
-              <h3 className="font-bold text-emerald-400 uppercase font-mono flex items-center gap-2">
-                <Mail className="w-4 h-4" /> Nodemailer Gmail SMTP Dispatch Credentials
-              </h3>
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">Target Receiver Mail</label>
+              <h4 className="font-bold text-xs font-mono text-white uppercase">Add New Footer Quick Link</h4>
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
-                  value="flexnagaon@gmail.com"
-                  readOnly
-                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-neutral-800 text-emerald-400 font-mono"
+                  value={newLinkLabel}
+                  onChange={e => setNewLinkLabel(e.target.value)}
+                  placeholder="Link Title (e.g. Vintage Fleeces & Vault Grails)"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-xs text-white font-mono"
                 />
-              </div>
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">Gmail App Password (16-character App Password)</label>
                 <input
-                  type="password"
-                  value={smtpPassSecret}
-                  onChange={e => setSmtpPassSecret(e.target.value)}
-                  placeholder="Enter your Gmail App Password (e.g. abcd efgh ijkl mnop)"
-                  className="w-full px-4 py-2.5 rounded-xl bg-black border border-neutral-700 text-white font-mono"
+                  type="text"
+                  value={newLinkHref}
+                  onChange={e => setNewLinkHref(e.target.value)}
+                  placeholder="Link URL (e.g. /shop?category=Jackets)"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-black border border-neutral-700 text-xs text-amber-400 font-mono"
                 />
-                <p className="text-[10px] text-neutral-500 mt-1">Generates directly in Google Account → Security → App Passwords.</p>
+                <button
+                  onClick={() => {
+                    if (newLinkLabel && newLinkHref) {
+                      addFooterQuickLink({ label: newLinkLabel, href: newLinkHref });
+                      setNewLinkLabel('');
+                      setNewLinkHref('');
+                    }
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase font-mono cursor-pointer shrink-0"
+                >
+                  Add Link
+                </button>
               </div>
             </div>
 
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Continuous Moving Ticker Banner Text (Screenshot 2 Spec)</label>
-              <input
-                type="text"
-                value={heroTickerText}
-                onChange={e => setHeroTickerText(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-amber-400 font-mono"
-                required
-              />
-            </div>
+            {/* List of Footer Links with Re-align Controls */}
+            <div className="space-y-2 max-w-3xl">
+              {currentFooterLinks.map((link, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-between gap-4 font-mono text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-black text-amber-400 flex items-center justify-center text-[10px] font-bold">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <span className="font-bold text-white">{link.label}</span>
+                      <span className="text-[10px] text-neutral-400 ml-2">({link.href})</span>
+                    </div>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">WhatsApp Number</label>
-                <input
-                  type="text"
-                  value={footerPhone}
-                  onChange={e => setFooterPhone(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">WhatsApp Redirect Link URL</label>
-                <input
-                  type="text"
-                  value={footerWhatsappUrl}
-                  onChange={e => setFooterWhatsappUrl(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-emerald-400 font-mono"
-                  required
-                />
-              </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => moveFooterLink(idx, 'up')}
+                      disabled={idx === 0}
+                      className="p-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white disabled:opacity-30 cursor-pointer"
+                      title="Move Up"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveFooterLink(idx, 'down')}
+                      disabled={idx === currentFooterLinks.length - 1}
+                      className="p-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white disabled:opacity-30 cursor-pointer"
+                      title="Move Down"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteFooterQuickLink(idx)}
+                      className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white cursor-pointer"
+                      title="Delete Link"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">Instagram Handle</label>
-                <input
-                  type="text"
-                  value={footerInstagram}
-                  onChange={e => setFooterInstagram(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-neutral-400 font-mono mb-1">Instagram Redirect Link URL</label>
-                <input
-                  type="text"
-                  value={footerInstagramUrl}
-                  onChange={e => setFooterInstagramUrl(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-pink-400 font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-neutral-400 font-mono mb-1">Footer Copyright Notice</label>
-              <input
-                type="text"
-                value={footerCopyright}
-                onChange={e => setFooterCopyright(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-mono"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-xs uppercase hover:bg-neutral-200 cursor-pointer"
-            >
-              Update All Redirect Links & Copy Live
-            </button>
-          </form>
+          </div>
         </div>
       )}
 
@@ -1008,7 +1183,7 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 8: CROSS-DEVICE ORDERS FULFILLMENT LOG */}
+      {/* TAB 8: CROSS-DEVICE ORDERS LOG */}
       {activeTab === 'orders' && (
         <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
           <div className="flex items-center justify-between">

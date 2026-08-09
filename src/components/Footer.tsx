@@ -18,6 +18,15 @@ export const Footer: React.FC = () => {
     setEmail('');
   };
 
+  const quickLinks = siteSettings.footerQuickLinks || [
+    { label: 'New Arrivals', href: '/shop?category=New Arrivals' },
+    { label: 'New Drops 🔥', href: '/shop' },
+    { label: 'Vintage Fleeces & Vault Grails', href: '/shop?category=Jackets' },
+    { label: 'Jerseys & Sportswear', href: '/shop?category=Jerseys' },
+    { label: 'Cargo Pants & Jeans', href: '/shop?category=Cargo Pants' },
+    { label: 'Clearance Vault', href: '/shop?category=Clearance' },
+  ];
+
   return (
     <footer className="bg-[#0A0A0A] border-t border-neutral-800 text-neutral-400 text-sm mt-24 font-sans">
       {/* Value Proposition Badges Bar */}
@@ -119,28 +128,28 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Categories */}
+        {/* Dynamic Admin Customizer Quick Links (New Arrivals, New Drops, Vintage Fleeces & Vault Grails) */}
         <div className="space-y-3">
-          <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider">Top Categories</h4>
+          <h4 className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">Quick Links</h4>
           <ul className="space-y-2 text-xs">
-            {['Jerseys', 'Jackets & Windcheaters', 'Sweatshirts & Fleeces', 'Graphic & Oversized Tees', 'Cargo Pants & Jeans', 'Caps & Accessories'].map((cat, i) => (
+            {quickLinks.map((link, i) => (
               <li key={i}>
-                <Link href="/shop" className="hover:text-white transition-colors">
-                  {cat}
+                <Link href={link.href} className="hover:text-white transition-colors font-medium">
+                  {link.label}
                 </Link>
               </li>
             ))}
           </ul>
         </div>
 
-        {/* Collections */}
+        {/* Top Categories */}
         <div className="space-y-3">
-          <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider">Collections</h4>
+          <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider">Categories</h4>
           <ul className="space-y-2 text-xs">
-            {['Vintage Collection', 'Y2K Collection', 'Streetwear Vault', 'Winter Collection', 'Imported Collection', 'Limited 1-of-1 Edition'].map((col, i) => (
+            {(siteSettings.customCategories || []).slice(0, 6).map((cat, i) => (
               <li key={i}>
-                <Link href="/collections" className="hover:text-white transition-colors">
-                  {col}
+                <Link href={`/shop?category=${encodeURIComponent(cat)}`} className="hover:text-white transition-colors">
+                  {cat}
                 </Link>
               </li>
             ))}
@@ -149,7 +158,7 @@ export const Footer: React.FC = () => {
 
         {/* Customer Care */}
         <div className="space-y-3">
-          <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider">Customer Care</h4>
+          <h4 className="text-xs font-mono font-bold text-white uppercase tracking-wider">Customer Support</h4>
           <ul className="space-y-2 text-xs">
             {['Track Your Order', 'Sanitization Process', 'Size & Fit Guide', 'FAQ & Support', 'Privacy & Terms'].map((link, i) => (
               <li key={i}>

@@ -133,6 +133,11 @@ export interface Coupon {
   minOrder?: number;
 }
 
+export interface FooterQuickLink {
+  label: string;
+  href: string;
+}
+
 export interface SiteSettings {
   announcementBanner: string;
   heroTitle: string;
@@ -140,18 +145,25 @@ export interface SiteSettings {
   heroCtaText: string;
   heroSecondaryCtaText: string;
   heroTickerText: string;
+  heroPosterImage1?: string;
+  heroPosterTitle1?: string;
+  heroPosterLink1?: string;
+  heroPosterImage2?: string;
+  heroPosterTitle2?: string;
+  heroPosterLink2?: string;
   footerTagline: string;
   footerPhone: string;
   footerWhatsappUrl: string;
   footerInstagram: string;
   footerInstagramUrl: string;
   footerCopyright: string;
+  footerQuickLinks?: FooterQuickLink[];
   collectionBoxOrder: string[];
   notificationSound: 'cash-register' | 'luxury-bell' | 'ping' | 'alert';
   customCategories: string[];
   customBrands: Array<{ name: string; logo: string; origin: string }>;
-  customFontFamily: string; // Font family name e.g. 'Inter' or 'CustomUploadedFont'
-  customFontDataUrl?: string; // Base64 Data URL for uploaded font file
+  customFontFamily: string;
+  customFontDataUrl?: string;
   promoModal: {
     enabled: boolean;
     title: string;

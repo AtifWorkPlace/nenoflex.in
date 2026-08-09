@@ -11,12 +11,19 @@ import { BRANDS_LIST } from '@/data/products';
 export default function HomePage() {
   const { products, siteSettings } = useStore();
 
-  // All products live display
   const newDropsList = products.slice(0, 8);
   const vaultGrailsList = products.slice(0, 4);
 
   const boxOrder = siteSettings.collectionBoxOrder || ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'];
   const tickerText = siteSettings.heroTickerText || 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||';
+
+  const posterImg1 = siteSettings.heroPosterImage1 || 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80';
+  const posterTitle1 = siteSettings.heroPosterTitle1 || 'Jackets / Windcheaters';
+  const posterLink1 = siteSettings.heroPosterLink1 || '/shop?category=Jackets';
+
+  const posterImg2 = siteSettings.heroPosterImage2 || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80';
+  const posterTitle2 = siteSettings.heroPosterTitle2 || 'New Drops Jerseys 🔥 🚀';
+  const posterLink2 = siteSettings.heroPosterLink2 || '/shop?category=Jerseys';
 
   const renderCollectionBox = (boxId: string) => {
     switch (boxId) {
@@ -40,32 +47,32 @@ export default function HomePage() {
 
               <div className="relative md:col-span-1 h-[340px] bg-neutral-900 border border-black rounded-3xl overflow-hidden group shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80"
-                  alt="Jackets"
+                  src={posterImg1}
+                  alt={posterTitle1}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-black/40 p-6 flex flex-col justify-end">
                   <Link
-                    href="/shop?category=Jackets"
+                    href={posterLink1}
                     className="px-4 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase w-max rounded-full hover:bg-white hover:text-black transition-all"
                   >
-                    Jackets / Windcheaters
+                    {posterTitle1}
                   </Link>
                 </div>
               </div>
 
               <div className="relative md:col-span-1 h-[340px] bg-neutral-900 border border-black rounded-3xl overflow-hidden group shadow-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80"
-                  alt="Jerseys"
+                  src={posterImg2}
+                  alt={posterTitle2}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-black/40 p-6 flex flex-col justify-end">
                   <Link
-                    href="/shop?category=Jerseys"
+                    href={posterLink2}
                     className="px-4 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase w-max rounded-full hover:bg-white hover:text-black transition-all"
                   >
-                    New Drops Jerseys 🔥 🚀
+                    {posterTitle2}
                   </Link>
                 </div>
               </div>

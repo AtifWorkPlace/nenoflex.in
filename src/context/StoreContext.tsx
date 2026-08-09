@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Order, FilterState, Coupon, SiteSettings, UserRole } from '@/types';
+import { Product, CartItem, Order, FilterState, Coupon, SiteSettings, UserRole, FooterQuickLink } from '@/types';
 import { INITIAL_PRODUCTS, BRANDS_LIST } from '@/data/products';
 import { SecuritySuite, AuditLog } from '@/lib/security';
 import { AudioNotificationEngine, NotificationSoundType } from '@/lib/audio';
@@ -41,6 +41,9 @@ interface StoreContextType {
   addBrand: (brand: { name: string; logo: string; origin: string }) => void;
   deleteBrand: (name: string) => void;
   uploadCustomFont: (fontName: string, fontDataUrl: string) => void;
+  addFooterQuickLink: (link: FooterQuickLink) => void;
+  deleteFooterQuickLink: (index: number) => void;
+  reorderFooterQuickLinks: (newLinks: FooterQuickLink[]) => void;
 
   // Cart & Shopping Actions
   toggleWishlist: (productId: string) => void;
@@ -85,7 +88,15 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_ORDERS: Order[] = [];
 
-// Synchronous initial state: NEVER loads sample photos!
+const DEFAULT_FOOTER_QUICK_LINKS: FooterQuickLink[] = [
+  { label: 'New Arrivals', href: '/shop?category=New Arrivals' },
+  { label: 'New Drops 🔥', href: '/shop' },
+  { label: 'Vintage Fleeces & Vault Grails', href: '/shop?category=Jackets' },
+  { label: 'Jerseys & Sportswear', href: '/shop?category=Jerseys' },
+  { label: 'Cargo Pants & Jeans', href: '/shop?category=Cargo Pants' },
+  { label: 'Clearance Vault', href: '/shop?category=Clearance' },
+];
+
 const getInitialProductsSync = (): Product[] => {
   if (typeof window === 'undefined') return [];
   try {
@@ -119,12 +130,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     heroCtaText: 'Shop now',
     heroSecondaryCtaText: 'Explore Vault',
     heroTickerText: 'NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND || NO COD || REFUND ON DEMAND ||',
+    heroPosterImage1: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
+    heroPosterTitle1: 'Jackets / Windcheaters',
+    heroPosterLink1: '/shop?category=Jackets',
+    heroPosterImage2: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
+    heroPosterTitle2: 'New Drops Jerseys 🔥 🚀',
+    heroPosterLink2: '/shop?category=Jerseys',
     footerTagline: 'Flex Your Style. Premium Handpicked Imported Vault.',
     footerPhone: '+91 60001 49919',
     footerWhatsappUrl: 'https://wa.me/916000149919',
     footerInstagram: '@flexnagaon',
     footerInstagramUrl: 'https://instagram.com/flexnagaon',
     footerCopyright: '© 2022 NenoFlex Official. All rights reserved.',
+    footerQuickLinks: DEFAULT_FOOTER_QUICK_LINKS,
     collectionBoxOrder: ['bento-banner', 'jerseys', 'jackets-fleeces', 'brands'],
     notificationSound: 'cash-register',
     customCategories: ['Jerseys', 'Jackets', 'Sweatshirts', 'Hoodies', 'Windbreakers', 'Graphic Tees', 'Oversized T-Shirts', 'Cargo Pants', 'Jeans', 'Caps'],
@@ -188,7 +206,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const fetchFastProducts = async () => {
       let fetchedList: Product[] | null = null;
 
-      // 1. Fetch from fast Vercel Edge Server API first (<30ms)
       try {
         const res = await fetch('/api/products', { cache: 'no-store' });
         if (res.ok) {
@@ -199,7 +216,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } catch (e) {}
 
-      // 2. Direct Supabase Fallback
       if (!fetchedList || fetchedList.length === 0) {
         try {
           const supabaseData = await SupabaseService.fetchProducts();
@@ -302,7 +318,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSiteSettings(settings);
     SecuritySuite.logAuditAction('UPDATE_SITE_SETTINGS', 'admin@nenoflex.com', userRole, 'Site Settings', 'Updated website settings and font configuration');
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast('Site settings & Typography updated live!');
+    showToast('Site settings & Banners updated live!');
   };
 
   const uploadCustomFont = (fontName: string, fontDataUrl: string) => {
@@ -314,6 +330,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     SecuritySuite.logAuditAction('UPLOAD_CUSTOM_FONT', 'admin@nenoflex.com', userRole, 'Typography Engine', `Uploaded custom device font ${fontName}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Font "${fontName}" uploaded & applied site-wide!`);
+  };
+
+  const addFooterQuickLink = (link: FooterQuickLink) => {
+    if (!link.label || !link.href) return;
+    setSiteSettings(prev => ({
+      ...prev,
+      footerQuickLinks: [...(prev.footerQuickLinks || DEFAULT_FOOTER_QUICK_LINKS), link],
+    }));
+    showToast(`Added Footer Link "${link.label}"`);
+  };
+
+  const deleteFooterQuickLink = (index: number) => {
+    setSiteSettings(prev => ({
+      ...prev,
+      footerQuickLinks: (prev.footerQuickLinks || DEFAULT_FOOTER_QUICK_LINKS).filter((_, i) => i !== index),
+    }));
+    showToast('Footer Link Removed');
+  };
+
+  const reorderFooterQuickLinks = (newLinks: FooterQuickLink[]) => {
+    setSiteSettings(prev => ({
+      ...prev,
+      footerQuickLinks: newLinks,
+    }));
+    showToast('Footer Links Re-aligned!');
   };
 
   const addCategory = (name: string) => {
@@ -613,6 +654,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addBrand,
         deleteBrand,
         uploadCustomFont,
+        addFooterQuickLink,
+        deleteFooterQuickLink,
+        reorderFooterQuickLinks,
         toggleWishlist,
         addToCart,
         removeFromCart,
