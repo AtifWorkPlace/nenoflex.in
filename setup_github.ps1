@@ -4,12 +4,29 @@ Write-Host "    NenoFlex Official Web - Push Updates to GitHub" -ForegroundColor
 Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host ""
 
-git init
-git branch -M main
+# Initialize repo if needed
+if (-not (Test-Path ".git")) {
+    git init
+    git branch -M main
+}
+
+# Set remote (safe: removes existing first)
 git remote remove origin 2>$null
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
+
+# Stage all changes
 git add .
-git commit -m "NenoFlex Production Release - Supabase Cloud DB & Nike PDP Upgrade"
+
+# Generate timestamped commit message
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
+$commitMsg = "NenoFlex Production Update [$timestamp] - SSR Hydration Fix, JWT Security, Concurrent API Fetch"
+
+Write-Host "Committing: $commitMsg" -ForegroundColor Yellow
+git commit -m "$commitMsg"
+
+# Push to main
+Write-Host ""
+Write-Host "Pushing to GitHub..." -ForegroundColor Yellow
 git push -u origin main
 
 Write-Host ""
