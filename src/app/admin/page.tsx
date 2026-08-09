@@ -22,8 +22,9 @@ import {
   Mail,
   RefreshCw,
   Send,
-  Sparkles,
-  ShieldAlert
+  X,
+  Star,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
@@ -126,7 +127,10 @@ export default function EnterpriseAdminDashboard() {
     sanitized: true,
     image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
     imageHover: 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&w=800&q=80',
-    gallery: ['https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80'],
+    gallery: [
+      'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&w=800&q=80'
+    ],
     isNewArrival: true,
     isTrending: true,
     isBestSeller: false,
@@ -159,26 +163,75 @@ export default function EnterpriseAdminDashboard() {
     );
   }
 
-  // Device File Upload Handlers
-  const handleDeviceImageUpload = (file: File, target: 'primary' | 'hover') => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (editingProduct) {
-        setEditingProduct({
-          ...editingProduct,
-          [target === 'primary' ? 'image' : 'imageHover']: dataUrl
-        });
-      } else {
-        setNewProd({
-          ...newProd,
-          [target === 'primary' ? 'image' : 'imageHover']: dataUrl
-        });
-      }
-      showToast(`Uploaded ${target === 'primary' ? 'Primary' : 'Hover 2nd'} image from device!`);
-    };
-    reader.readAsDataURL(file);
+  // Multi-File Device Image Upload Handler (Max 10 Images Limit per Product!)
+  const handleMultiDeviceImageUpload = (files: FileList) => {
+    if (!files || files.length === 0) return;
+
+    const currentGallery = editingProduct ? (editingProduct.gallery || []) : (newProd.gallery || []);
+    const remainingSlots = 10 - currentGallery.length;
+
+    if (remainingSlots <= 0) {
+      showToast('Maximum 10 images limit reached for this product!');
+      return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    let uploadedCount = 0;
+    const newImageUrls: string[] = [];
+
+    filesToUpload.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        newImageUrls.push(dataUrl);
+        uploadedCount++;
+
+        if (uploadedCount === filesToUpload.length) {
+          const updatedGallery = [...currentGallery, ...newImageUrls].slice(0, 10);
+          const primary: string = updatedGallery[0] || (editingProduct ? editingProduct.image : newProd.image) || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80';
+          const hover: string = updatedGallery[1] || primary;
+
+          if (editingProduct) {
+            setEditingProduct({
+              ...editingProduct,
+              image: primary,
+              imageHover: hover,
+              gallery: updatedGallery,
+            });
+          } else {
+            setNewProd({
+              ...newProd,
+              image: primary,
+              imageHover: hover,
+              gallery: updatedGallery,
+            });
+          }
+          showToast(`Uploaded ${newImageUrls.length} image(s) live! (${updatedGallery.length}/10 images)`);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeGalleryImage = (index: number) => {
+    if (editingProduct) {
+      const updatedGallery = editingProduct.gallery.filter((_, i) => i !== index);
+      setEditingProduct({
+        ...editingProduct,
+        image: updatedGallery[0] || editingProduct.image,
+        imageHover: updatedGallery[1] || updatedGallery[0] || editingProduct.imageHover,
+        gallery: updatedGallery,
+      });
+    } else {
+      const updatedGallery = (newProd.gallery || []).filter((_, i) => i !== index);
+      setNewProd({
+        ...newProd,
+        image: updatedGallery[0] || newProd.image,
+        imageHover: updatedGallery[1] || updatedGallery[0] || newProd.imageHover,
+        gallery: updatedGallery,
+      });
+    }
+    showToast('Image removed from product gallery');
   };
 
   const handleDeviceFontFileUpload = (file: File) => {
@@ -259,11 +312,14 @@ export default function EnterpriseAdminDashboard() {
       const fullProduct: Product = {
         ...newProd,
         id: `nf-${Date.now()}`,
+        gallery: newProd.gallery && newProd.gallery.length > 0 ? newProd.gallery : [newProd.image || ''],
       } as Product;
       addProduct(fullProduct);
       setShowAddModal(false);
     }
   };
+
+  const activeGallery = editingProduct ? (editingProduct.gallery || []) : (newProd.gallery || []);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 font-sans">
@@ -275,13 +331,13 @@ export default function EnterpriseAdminDashboard() {
               ROLE: {userRole.toUpperCase()} (101% CONTROL)
             </span>
             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1">
-              <RefreshCw className="w-3 h-3 animate-spin" /> PHONE & PC CLOUD SYNC ONLINE
+              <RefreshCw className="w-3 h-3 animate-spin" /> REAL-TIME MULTI-DEVICE SYNC
             </span>
           </div>
           <h1 className="luxury-heading text-2xl sm:text-3xl font-bold text-white mt-2">
             NenoFlex Executive Command Center
           </h1>
-          <p className="text-xs text-neutral-400">All 9 Admin Tabs Audited & 100% Operational across Mobile & PC.</p>
+          <p className="text-xs text-neutral-400">10-Image Product Gallery Uploader, Real-Time Website Sync & Cloud Orders Engine.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -338,13 +394,13 @@ export default function EnterpriseAdminDashboard() {
       {activeTab === 'products' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-sm font-mono uppercase font-bold text-white">Vault Products Directory</h2>
+            <h2 className="text-sm font-mono uppercase font-bold text-white">Vault Products Directory (Real-Time Live Updates)</h2>
             <button
               onClick={() => {
                 setEditingProduct(null);
                 setShowAddModal(true);
               }}
-              className="px-4 py-2 rounded-full bg-white text-black font-bold text-xs uppercase flex items-center gap-1.5"
+              className="px-4 py-2 rounded-full bg-white text-black font-bold text-xs uppercase flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" /> New Product
             </button>
@@ -359,6 +415,7 @@ export default function EnterpriseAdminDashboard() {
                   <th className="py-3 px-4">Brand</th>
                   <th className="py-3 px-4">Price</th>
                   <th className="py-3 px-4">Condition Grade</th>
+                  <th className="py-3 px-4">Gallery</th>
                   <th className="py-3 px-4">Stock</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -379,6 +436,9 @@ export default function EnterpriseAdminDashboard() {
                     <td className="py-3 px-4 font-mono font-bold text-white">₹{p.price}</td>
                     <td className="py-3 px-4 font-mono text-emerald-400 font-bold">
                       {p.conditionScore} / 10 ({p.conditionGrade})
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-amber-400">
+                      {(p.gallery || []).length} / 10 imgs
                     </td>
                     <td className="py-3 px-4 font-mono">{p.stockCount}</td>
                     <td className="py-3 px-4">
@@ -420,7 +480,6 @@ export default function EnterpriseAdminDashboard() {
       {/* TAB 2: CUSTOMIZABLE CATALOG CATEGORIES & BRANDS */}
       {activeTab === 'catalog' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Category Customizer */}
           <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
             <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Catalog Categories</h3>
             <div className="flex gap-2">
@@ -459,7 +518,6 @@ export default function EnterpriseAdminDashboard() {
             </div>
           </div>
 
-          {/* Brand Customizer */}
           <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
             <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Luxury & Streetwear Brands</h3>
             <div className="space-y-2">
@@ -675,7 +733,6 @@ export default function EnterpriseAdminDashboard() {
               </button>
             </div>
 
-            {/* Live Card Preview */}
             <div className="p-6 rounded-3xl bg-[#171717] border border-white/20 text-white space-y-4 shadow-2xl flex flex-col justify-between">
               <span className="text-[10px] font-mono text-emerald-400 uppercase font-bold">LIVE PREVIEW</span>
               <img src={promoImage} alt="Preview" className="w-full h-48 object-cover rounded-2xl bg-neutral-900" />
@@ -727,7 +784,7 @@ export default function EnterpriseAdminDashboard() {
                     e.stopPropagation();
                     playAdminChime(sound.id as any);
                   }}
-                  className="px-4 py-2 rounded-full bg-white text-black text-xs font-bold uppercase flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-full bg-white text-black text-xs font-bold uppercase flex items-center gap-1.5 cursor-pointer"
                 >
                   <Volume2 className="w-3.5 h-3.5" /> Test Sound
                 </button>
@@ -997,13 +1054,24 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* CREATE / EDIT PRODUCT MODAL WITH DEVICE FILE PICKER */}
+      {/* CREATE / EDIT PRODUCT MODAL WITH 10-IMAGE GALLERY UPLOADER */}
       {(showAddModal || editingProduct) && (
         <div className="fixed inset-0 z-50 p-4 flex items-center justify-center bg-black/90 backdrop-blur-md">
-          <div className="w-full max-w-2xl bg-neutral-900 border border-neutral-700 rounded-3xl p-6 sm:p-8 space-y-4 text-white overflow-y-auto max-h-[90vh] shadow-2xl font-sans">
-            <h3 className="font-bold text-lg font-mono uppercase">
-              {editingProduct ? `Edit SKU ${editingProduct.sku}` : 'Add New Vault Product (Shopify Spec)'}
-            </h3>
+          <div className="w-full max-w-3xl bg-neutral-900 border border-neutral-700 rounded-3xl p-6 sm:p-8 space-y-5 text-white overflow-y-auto max-h-[92vh] shadow-2xl font-sans">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <h3 className="font-bold text-lg font-mono uppercase">
+                {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Add New Vault Product (Up to 10 Images Limit)'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingProduct(null);
+                }}
+                className="p-1.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleCreateProduct} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
@@ -1062,7 +1130,7 @@ export default function EnterpriseAdminDashboard() {
                         ? setEditingProduct({ ...editingProduct, brand: e.target.value as any })
                         : setNewProd({ ...newProd, brand: e.target.value as any })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white cursor-pointer"
                   >
                     {siteSettings.customBrands.map(b => (
                       <option key={b.name} value={b.name}>{b.name}</option>
@@ -1078,7 +1146,7 @@ export default function EnterpriseAdminDashboard() {
                         ? setEditingProduct({ ...editingProduct, category: e.target.value as any })
                         : setNewProd({ ...newProd, category: e.target.value as any })
                     }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-white cursor-pointer"
                   >
                     {siteSettings.customCategories.map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -1160,25 +1228,56 @@ export default function EnterpriseAdminDashboard() {
                 />
               </div>
 
-              {/* Device Image File Pickers */}
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-black border border-neutral-800">
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono text-[11px]">📁 Upload Primary Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => e.target.files?.[0] && handleDeviceImageUpload(e.target.files[0], 'primary')}
-                    className="text-[10px] text-neutral-400"
-                  />
+              {/* 10-IMAGE GALLERY MULTI-FILE UPLOADER */}
+              <div className="p-4 rounded-2xl bg-black border border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between font-mono">
+                  <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4" /> Multi-Image Gallery Uploader (Max 10 Images)
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400">
+                    Uploaded: {activeGallery.length} / 10 images
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-neutral-400 mb-1 font-mono text-[11px]">📁 Upload Hover 2nd Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => e.target.files?.[0] && handleDeviceImageUpload(e.target.files[0], 'hover')}
-                    className="text-[10px] text-neutral-400"
-                  />
+
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white text-black font-bold font-mono text-xs uppercase hover:bg-neutral-200 transition-all flex items-center gap-1.5 shadow-lg">
+                    <Upload className="w-3.5 h-3.5" /> Upload Device Images (Up to 10)
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={e => e.target.files && handleMultiDeviceImageUpload(e.target.files)}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-[11px] text-neutral-400">Select multiple image files from PC/Phone gallery.</span>
+                </div>
+
+                {/* 10-Image Thumbnails Grid */}
+                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 pt-2">
+                  {activeGallery.map((imgUrl, i) => (
+                    <div key={i} className="relative group aspect-square rounded-xl overflow-hidden bg-neutral-900 border border-neutral-700">
+                      <img src={imgUrl} alt={`Gallery ${i}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeGalleryImage(i)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-rose-600 text-white opacity-90 hover:opacity-100 cursor-pointer"
+                        title="Remove Image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      {i === 0 && (
+                        <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] text-center font-mono text-emerald-400 font-bold">
+                          PRIMARY
+                        </span>
+                      )}
+                      {i === 1 && (
+                        <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] text-center font-mono text-amber-400 font-bold">
+                          HOVER 2nd
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1195,9 +1294,9 @@ export default function EnterpriseAdminDashboard() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-full bg-white text-black font-bold uppercase font-mono text-xs cursor-pointer"
+                  className="px-6 py-2 rounded-full bg-white text-black font-bold uppercase font-mono text-xs cursor-pointer shadow-lg"
                 >
-                  Save Product
+                  Save Product Live
                 </button>
               </div>
             </form>

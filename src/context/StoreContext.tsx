@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (100% Control)
+  // Product CRUD (100% Control & Real-time Update)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -156,6 +156,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
+  // Load products from localStorage for real-time persistence across browser reloads
+  useEffect(() => {
+    try {
+      const savedProds = localStorage.getItem('nenoflex_products');
+      if (savedProds) {
+        const parsed = JSON.parse(savedProds);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProducts(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage products load error:', e);
+    }
+  }, []);
+
   // Cross-Device Order Synchronization Polling (Phone & PC Sync)
   useEffect(() => {
     const fetchCloudOrders = async () => {
@@ -176,7 +191,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     fetchCloudOrders();
-    const interval = setInterval(fetchCloudOrders, 5000); // Poll every 5s for live cross-device order updates
+    const interval = setInterval(fetchCloudOrders, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -432,7 +447,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setOrders(prev => [newOrder, ...prev]);
 
-    // Cross-Device Cloud Sync POST to /api/orders (Syncs to Phone, PC & Supabase live!)
+    // Cross-Device Cloud Sync POST to /api/orders
     try {
       fetch('/api/orders', {
         method: 'POST',
@@ -465,24 +480,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD
+  // Product CRUD (Real-Time State + LocalStorage Synchronization)
   const addProduct = (p: Product) => {
-    setProducts(prev => [p, ...prev]);
+    setProducts(prev => {
+      const updated = [p, ...prev];
+      try {
+        localStorage.setItem('nenoflex_products', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Added "${p.name}"`);
+    showToast(`Product "${p.name}" Added Live!`);
   };
 
   const updateProduct = (updated: Product) => {
-    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setProducts(prev => {
+      const updatedList = prev.map(p => p.id === updated.id ? updated : p);
+      try {
+        localStorage.setItem('nenoflex_products', JSON.stringify(updatedList));
+      } catch (e) {}
+      return updatedList;
+    });
     SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
-    showToast(`Updated "${updated.name}"`);
+    showToast(`Product "${updated.name}" Updated Live!`);
   };
 
   const deleteProduct = (id: string) => {
     const found = products.find(p => p.id === id);
-    setProducts(prev => prev.filter(p => p.id !== id));
+    setProducts(prev => {
+      const updatedList = prev.filter(p => p.id !== id);
+      try {
+        localStorage.setItem('nenoflex_products', JSON.stringify(updatedList));
+      } catch (e) {}
+      return updatedList;
+    });
     SecuritySuite.logAuditAction('DELETE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Deleted product ${found?.name || id}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Product deleted`);
