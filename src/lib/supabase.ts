@@ -3,12 +3,12 @@ import { AuditLog } from '@/lib/security';
 
 const getSupabaseConfig = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://mrrtmrjqlzhajopevnpo.supabase.co';
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SECRET_KEY || 'sb_publishable_tkznoefVD3i0aQgQe5Le3A_geT00KaP';
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
   return { url, key, isConfigured: Boolean(url && key) };
 };
 
 export const SupabaseService = {
-  // Save Product to Supabase PostgreSQL Database Table
+  // Save Product to Supabase PostgreSQL Database Table globally
   saveProduct: async (product: Product): Promise<boolean> => {
     const { url, key, isConfigured } = getSupabaseConfig();
     if (!isConfigured) return false;
@@ -32,7 +32,7 @@ export const SupabaseService = {
     }
   },
 
-  // Fetch Products from Supabase PostgreSQL Database Table
+  // Fetch Products from Supabase PostgreSQL Database Table globally
   fetchProducts: async (): Promise<Product[] | null> => {
     const { url, key, isConfigured } = getSupabaseConfig();
     if (!isConfigured) return null;
