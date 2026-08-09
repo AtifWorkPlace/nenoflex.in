@@ -3,13 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { Product } from '@/types';
 import { INITIAL_PRODUCTS } from '@/data/products';
+import { normalizeProductFromDb } from '@/lib/supabase';
 
 const DB_FILE = path.join(process.cwd(), 'products_db.json');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mrrtmrjqlzhajopevnpo.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
-// Global In-Memory Edge Cache across Serverless Invocations
+// Global Edge memory cache
 let globalEdgeProductsStore: Product[] | null = null;
 
 function loadProductsFromDisk(): Product[] {
@@ -40,7 +41,7 @@ function saveProductsToDisk(products: Product[]) {
 async function syncProductsWithSupabase(products: Product[]) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
 
-  // 1. Post to Supabase 'products' table
+  // 1. Post to Supabase 'products' table (PostgreSQL snake_case)
   try {
     const formattedRows = products.map(p => ({
       id: p.id,
@@ -51,28 +52,28 @@ async function syncProductsWithSupabase(products: Product[]) {
       category: p.category,
       collection: p.collection,
       price: p.price,
-      showroomPrice: p.showroomPrice,
-      discountPercent: p.discountPercent,
-      conditionScore: p.conditionScore,
-      conditionGrade: p.conditionGrade,
+      showroom_price: p.showroomPrice,
+      discount_percent: p.discountPercent,
+      condition_score: p.conditionScore,
+      condition_grade: p.conditionGrade,
       sizes: p.sizes,
       colors: p.colors,
       material: p.material,
       weight: p.weight,
       fit: p.fit,
       description: p.description,
-      authenticitySeal: p.authenticitySeal,
+      authenticity_seal: p.authenticitySeal,
       sanitized: p.sanitized,
       image: p.image,
-      imageHover: p.imageHover,
+      image_hover: p.imageHover,
       gallery: p.gallery,
-      isNewArrival: p.isNewArrival,
-      isTrending: p.isTrending,
-      isBestSeller: p.isBestSeller,
-      isLimited: p.isLimited,
-      stockCount: p.stockCount,
+      is_new_arrival: p.isNewArrival,
+      is_trending: p.isTrending,
+      is_best_seller: p.isBestSeller,
+      is_limited: p.isLimited,
+      stock_count: p.stockCount,
       rating: p.rating,
-      reviewsCount: p.reviewsCount,
+      reviews_count: p.reviewsCount,
       tags: p.tags,
     }));
 
@@ -111,7 +112,24 @@ async function syncProductsWithSupabase(products: Product[]) {
 async function fetchProductsFromSupabase(): Promise<Product[] | null> {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
 
-  // 1. Try Supabase 'products' table
+  // 1. Try Supabase 'site_settings' global catalog container first (exact JSON camelCase array!)
+  try {
+    const resSettings = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.global_products_catalog&select=*`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+      },
+      cache: 'no-store',
+    });
+    if (resSettings.ok) {
+      const dataSettings = await resSettings.json();
+      if (Array.isArray(dataSettings) && dataSettings[0]?.catalog_data && Array.isArray(dataSettings[0].catalog_data) && dataSettings[0].catalog_data.length > 0) {
+        return dataSettings[0].catalog_data.map(normalizeProductFromDb);
+      }
+    }
+  } catch (e) {}
+
+  // 2. Fallback to Supabase 'products' table
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/products?select=*`, {
       headers: {
@@ -123,24 +141,7 @@ async function fetchProductsFromSupabase(): Promise<Product[] | null> {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-    }
-  } catch (e) {}
-
-  // 2. Try Supabase 'site_settings' global catalog container
-  try {
-    const resSettings = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.global_products_catalog&select=*`, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      },
-      cache: 'no-store',
-    });
-    if (resSettings.ok) {
-      const dataSettings = await resSettings.json();
-      if (Array.isArray(dataSettings) && dataSettings[0]?.catalog_data && Array.isArray(dataSettings[0].catalog_data)) {
-        return dataSettings[0].catalog_data;
+        return data.map(normalizeProductFromDb);
       }
     }
   } catch (e) {}
