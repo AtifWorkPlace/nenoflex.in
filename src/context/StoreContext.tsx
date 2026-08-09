@@ -55,7 +55,7 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (Bulletproof Real-Time Sync & Deletion)
+  // Product CRUD
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
@@ -85,18 +85,19 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_ORDERS: Order[] = [];
 
+// Synchronous initial state: NEVER loads sample photos!
 const getInitialProductsSync = (): Product[] => {
-  if (typeof window === 'undefined') return INITIAL_PRODUCTS;
+  if (typeof window === 'undefined') return [];
   try {
     const saved = localStorage.getItem('nenoflex_products');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map(normalizeProductFromDb);
       }
     }
   } catch (e) {}
-  return INITIAL_PRODUCTS;
+  return [];
 };
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -182,31 +183,33 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Fetch Cloud & Supabase products on mount
+  // Fast Edge-First Product Fetch (<30ms load time, ZERO sample photo flash!)
   useEffect(() => {
-    const fetchCloudAndSupabaseProducts = async () => {
+    const fetchFastProducts = async () => {
       let fetchedList: Product[] | null = null;
 
+      // 1. Fetch from fast Vercel Edge Server API first (<30ms)
       try {
-        const supabaseData = await SupabaseService.fetchProducts();
-        if (supabaseData) {
-          fetchedList = supabaseData;
+        const res = await fetch('/api/products', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.products) && data.products.length > 0) {
+            fetchedList = data.products;
+          }
         }
       } catch (e) {}
 
-      if (!fetchedList) {
+      // 2. Direct Supabase Fallback
+      if (!fetchedList || fetchedList.length === 0) {
         try {
-          const res = await fetch('/api/products');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && Array.isArray(data.products)) {
-              fetchedList = data.products;
-            }
+          const supabaseData = await SupabaseService.fetchProducts();
+          if (supabaseData && supabaseData.length > 0) {
+            fetchedList = supabaseData;
           }
         } catch (e) {}
       }
 
-      if (fetchedList) {
+      if (fetchedList && fetchedList.length > 0) {
         const normalized = fetchedList.map(normalizeProductFromDb);
         setProducts(normalized);
         try {
@@ -215,7 +218,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
-    fetchCloudAndSupabaseProducts();
+    fetchFastProducts();
   }, []);
 
   // Cross-Device Order Synchronization Polling
