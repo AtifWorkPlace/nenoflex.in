@@ -55,10 +55,11 @@ interface StoreContextType {
     paymentMethod: Order['paymentMethod'];
   }) => Order;
 
-  // Product CRUD (100% Real-Time Cloud Persistence)
+  // Product CRUD (100% Real-Time Live Persistence)
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
+  resetProductsToDefault: () => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
 
   // Toast System
@@ -156,8 +157,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
 
-  // Load products from Cloud Products API on mount so uploaded images PERMANENTLY PERSIST!
+  // Synchronize products to localStorage & Cloud API
+  const syncProducts = (updatedProducts: Product[]) => {
+    setProducts(updatedProducts);
+    try {
+      localStorage.setItem('nenoflex_products', JSON.stringify(updatedProducts));
+    } catch (e) {
+      console.warn('LocalStorage save warning:', e);
+    }
+
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_all', products: updatedProducts }),
+      }).catch(err => console.warn('API products sync error:', err));
+    } catch (e) {}
+  };
+
+  // Load saved products from localStorage & Cloud Products API on mount
   useEffect(() => {
+    try {
+      const savedProds = localStorage.getItem('nenoflex_products');
+      if (savedProds) {
+        const parsed = JSON.parse(savedProds);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProducts(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage products load error:', e);
+    }
+
     const fetchCloudProducts = async () => {
       try {
         const res = await fetch('/api/products');
@@ -165,6 +196,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const data = await res.json();
           if (data.success && Array.isArray(data.products) && data.products.length > 0) {
             setProducts(data.products);
+            try {
+              localStorage.setItem('nenoflex_products', JSON.stringify(data.products));
+            } catch (e) {}
           }
         }
       } catch (e) {
@@ -483,36 +517,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return newOrder;
   };
 
-  // Product CRUD (Permanent Cloud API Sync - Never Resets on Page Refresh!)
+  // Product CRUD (Permanent Sync across LocalStorage, React State & Cloud API!)
   const addProduct = (p: Product) => {
-    setProducts(prev => {
-      const updated = [p, ...prev];
-      try {
-        fetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'add', product: p }),
-        });
-      } catch (e) {}
-      return updated;
-    });
+    const updated = [p, ...products.filter(item => item.id !== p.id)];
+    syncProducts(updated);
     SecuritySuite.logAuditAction('ADD_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Added product ${p.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Product "${p.name}" Saved Permanently!`);
   };
 
   const updateProduct = (updated: Product) => {
-    setProducts(prev => {
-      const updatedList = prev.map(p => p.id === updated.id ? updated : p);
-      try {
-        fetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'update', product: updated }),
-        });
-      } catch (e) {}
-      return updatedList;
-    });
+    const updatedList = products.map(p => p.id === updated.id ? updated : p);
+    syncProducts(updatedList);
     SecuritySuite.logAuditAction('UPDATE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Updated product ${updated.name}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Product "${updated.name}" Saved Permanently!`);
@@ -520,20 +536,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteProduct = (id: string) => {
     const found = products.find(p => p.id === id);
-    setProducts(prev => {
-      const updatedList = prev.filter(p => p.id !== id);
-      try {
-        fetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'delete', product: { id } }),
-        });
-      } catch (e) {}
-      return updatedList;
-    });
+    const updatedList = products.filter(p => p.id !== id);
+    syncProducts(updatedList);
     SecuritySuite.logAuditAction('DELETE_PRODUCT', 'admin@nenoflex.com', userRole, 'Products Catalog', `Deleted product ${found?.name || id}`);
     setAuditLogs(SecuritySuite.getAuditLogs());
     showToast(`Product deleted`);
+  };
+
+  const resetProductsToDefault = () => {
+    syncProducts(INITIAL_PRODUCTS);
+    showToast('Reset product catalog to factory defaults');
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {
@@ -586,6 +598,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addProduct,
         updateProduct,
         deleteProduct,
+        resetProductsToDefault,
         updateOrderStatus,
         toastMessage,
         showToast,

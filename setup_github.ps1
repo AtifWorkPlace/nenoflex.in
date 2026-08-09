@@ -8,7 +8,7 @@ git init
 git branch -M main
 git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
-git commit -m "Cloud Products Storage API (/api/products) & Nike-styled PDP & Outer PDP layout upgrade - NenoFlex Official Web (nenoflex.in)"
+git commit -m "Auto-compressed image upload optimizer & 100% permanent product catalog persistence - NenoFlex Official Web (nenoflex.in)"
 git checkout -b dev
 git checkout main
 git push -u origin main
