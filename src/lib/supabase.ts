@@ -153,72 +153,33 @@ export async function uploadProductImageDirectlyToSupabase(
     const cleanPrefix = fileNamePrefix.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
     const mimeType = blobToUpload.type || 'image/webp';
 
-    if (!adminToken) {
-      return { success: false, error: 'Admin authentication session token missing' };
+    // Check compressed size (< 2MB)
+    if (blobToUpload.size > 2 * 1024 * 1024) {
+      return { success: false, error: 'Image size exceeds 2MB limit after compression. Please retry.' };
     }
 
-    // Step 1: Issue Signed Upload URL via authenticated API
-    const signedUrlRes = await fetch('/api/admin/create-upload-url', {
+    // Direct authenticated upload via POST /api/admin/upload-image (multipart/form-data)
+    const formData = new FormData();
+    const fileExt = mimeType.includes('webp') ? 'webp' : (mimeType.includes('png') ? 'png' : 'jpg');
+    formData.append('file', blobToUpload, `${cleanPrefix}-${Date.now()}.${fileExt}`);
+    formData.append('prefix', cleanPrefix);
+
+    const uploadRes = await fetch('/api/admin/upload-image', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${adminToken}`,
       },
-      body: JSON.stringify({
-        fileNamePrefix: cleanPrefix,
-        mimeType,
-      }),
+      body: formData,
     });
 
-    const signedData = await signedUrlRes.json();
-    if (!signedUrlRes.ok || !signedData.success || !signedData.path || !signedData.token) {
-      console.warn('[Signed Upload Authorization Error]:', signedData.error);
-      return { success: false, error: signedData.error || 'Failed to acquire Supabase Storage upload authorization' };
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
+      console.error('[Admin Storage Upload Error]:', uploadData.error);
+      return { success: false, error: uploadData.error || 'Failed to upload image to Supabase Storage' };
     }
 
-    // Step 2: Upload directly to Supabase Storage
-    const client = getSupabaseBrowserClient();
-    if (client) {
-      const { data: uploadData, error: uploadError } = await client.storage
-        .from('products')
-        .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
-          contentType: mimeType,
-          upsert: true,
-        });
-
-      if (!uploadError && uploadData) {
-        console.log('[Supabase Native SDK Signed Upload Success]:', signedData.publicUrl);
-        return { success: true, url: signedData.publicUrl };
-      } else if (uploadError) {
-        console.warn('[Supabase Native SDK Signed Upload Warning]:', {
-          message: uploadError?.message,
-          status: (uploadError as any)?.status,
-        });
-      }
-    }
-
-    // Step 3: Direct HTTP PUT to Signed URL (Zero-Key Storage CDN Upload)
-    if (signedData.signedUrl) {
-      const directPutRes = await fetch(signedData.signedUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': mimeType,
-          'x-upsert': 'true',
-        },
-        body: blobToUpload,
-      });
-
-      if (directPutRes.ok) {
-        console.log('[Supabase Storage Direct Signed PUT Success]:', signedData.publicUrl);
-        return { success: true, url: signedData.publicUrl };
-      } else {
-        const errText = await directPutRes.text();
-        console.error('[Supabase Storage Direct Signed PUT Error]:', directPutRes.status, errText);
-        return { success: false, error: `Supabase Storage HTTP ${directPutRes.status}: ${errText}` };
-      }
-    }
-
-    return { success: false, error: 'Supabase Storage signed upload authorization invalid or rejected' };
+    console.log('[Admin Storage Upload Success]:', uploadData.url);
+    return { success: true, url: uploadData.url };
   } catch (e: any) {
     console.error('[Supabase Storage Upload Exception]:', e?.message || e);
     return { success: false, error: e?.message || 'Storage upload exception occurred' };

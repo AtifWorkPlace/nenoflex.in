@@ -528,7 +528,11 @@ export const SupabaseServerService = {
   },
 
   // Upload file directly to Supabase Storage bucket 'products'
-  uploadStorageFile: async (fileBuffer: Buffer, mimeType: string, fileNamePrefix: string): Promise<{ success: boolean; url?: string; error?: string }> => {
+  uploadStorageFile: async (
+    fileBuffer: Buffer,
+    mimeType: string = 'image/webp',
+    fileNamePrefix: string = 'prod'
+  ): Promise<{ success: boolean; url?: string; path?: string; error?: string }> => {
     const apiKey = getPrivilegedKey();
     const supabaseUrl = getSupabaseUrl();
     if (!supabaseUrl || !apiKey) {
@@ -561,7 +565,7 @@ export const SupabaseServerService = {
       }
 
       const publicUrl = `${supabaseUrl}/storage/v1/object/public/products/${storagePath}`;
-      return { success: true, url: publicUrl };
+      return { success: true, url: publicUrl, path: storagePath };
     } catch (e: any) {
       console.error('[Supabase Storage Server Upload Exception]:', e?.message || e);
       return { success: false, error: e?.message || 'Server exception uploading file to Supabase Storage' };
