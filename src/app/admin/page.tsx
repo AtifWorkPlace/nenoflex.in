@@ -37,6 +37,7 @@ import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
 import { NotificationSoundType } from '@/lib/audio';
 import { compressImageDataUrl } from '@/lib/imageOptimizer';
+import { uploadProductImageDirectlyToSupabase } from '@/lib/supabase';
 
 export default function EnterpriseAdminDashboard() {
   const {
@@ -288,39 +289,29 @@ export default function EnterpriseAdminDashboard() {
     );
   }
 
-  // Device Poster Image Upload Handler
-  const handleDevicePosterUpload = (file: File, posterIndex: 1 | 2 | 3) => {
+  // Device Poster Image Upload Handler (Direct Supabase Storage CDN)
+  const handleDevicePosterUpload = async (file: File, posterIndex: 1 | 2 | 3) => {
     if (!file) return;
     setIsDirty(true);
-    showToast(`Optimizing Poster ${posterIndex} image...`);
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const rawDataUrl = e.target?.result as string;
-      const compressed = await compressImageDataUrl(rawDataUrl, 800, 0.75);
-      if (posterIndex === 1) setPosterBg1(compressed);
-      else if (posterIndex === 2) setPosterImg2(compressed);
-      else if (posterIndex === 3) setPosterImg3(compressed);
-      showToast(`Poster ${posterIndex} updated in form! Click "Save Settings" to publish.`);
-    };
-    reader.readAsDataURL(file);
+    showToast(`Uploading Poster ${posterIndex} image directly to Supabase Storage...`);
+    const publicUrl = await uploadProductImageDirectlyToSupabase(file, `poster-${posterIndex}`);
+    if (posterIndex === 1) setPosterBg1(publicUrl);
+    else if (posterIndex === 2) setPosterImg2(publicUrl);
+    else if (posterIndex === 3) setPosterImg3(publicUrl);
+    showToast(`Poster ${posterIndex} uploaded! Click "Save Settings" to publish.`);
   };
 
-  // Device Promo Image Upload Handler
-  const handleDevicePromoUpload = (file: File) => {
+  // Device Promo Image Upload Handler (Direct Supabase Storage CDN)
+  const handleDevicePromoUpload = async (file: File) => {
     if (!file) return;
     setIsDirty(true);
-    showToast('Optimizing Promo image...');
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const rawDataUrl = e.target?.result as string;
-      const compressed = await compressImageDataUrl(rawDataUrl, 800, 0.75);
-      setPromoImage(compressed);
-      showToast('Promo image updated in form!');
-    };
-    reader.readAsDataURL(file);
+    showToast('Uploading Promo image directly to Supabase Storage...');
+    const publicUrl = await uploadProductImageDirectlyToSupabase(file, 'promo');
+    setPromoImage(publicUrl);
+    showToast('Promo image uploaded!');
   };
 
-  // Multi-File Product Image Upload Handler
+  // Multi-File Product Image Upload Handler (Direct Supabase Storage CDN)
   const handleMultiDeviceImageUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
@@ -333,44 +324,38 @@ export default function EnterpriseAdminDashboard() {
     }
 
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
-    let uploadedCount = 0;
+    showToast(`Uploading ${filesToUpload.length} image(s) directly to Supabase Storage CDN...`);
+
     const newImageUrls: string[] = [];
+    const prefix = editingProduct ? editingProduct.id : 'new-prod';
 
-    showToast('Optimizing product image(s)...');
+    for (const file of filesToUpload) {
+      const url = await uploadProductImageDirectlyToSupabase(file, prefix);
+      if (url) newImageUrls.push(url);
+    }
 
-    filesToUpload.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const rawDataUrl = e.target?.result as string;
-        const compressedDataUrl = await compressImageDataUrl(rawDataUrl, 600, 0.72);
-        newImageUrls.push(compressedDataUrl);
-        uploadedCount++;
+    if (newImageUrls.length > 0) {
+      const updatedGallery = [...currentGallery, ...newImageUrls].slice(0, 10);
+      const primary: string = updatedGallery[0] || (editingProduct ? editingProduct.image : newProd.image) || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80';
+      const hover: string = updatedGallery[1] || primary;
 
-        if (uploadedCount === filesToUpload.length) {
-          const updatedGallery = [...currentGallery, ...newImageUrls].slice(0, 10);
-          const primary: string = updatedGallery[0] || (editingProduct ? editingProduct.image : newProd.image) || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80';
-          const hover: string = updatedGallery[1] || primary;
-
-          if (editingProduct) {
-            setEditingProduct({
-              ...editingProduct,
-              image: primary,
-              imageHover: hover,
-              gallery: updatedGallery,
-            });
-          } else {
-            setNewProd(prev => ({
-              ...prev,
-              image: primary,
-              imageHover: hover,
-              gallery: updatedGallery,
-            }));
-          }
-          showToast(`Uploaded ${newImageUrls.length} image(s)!`);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+      if (editingProduct) {
+        setEditingProduct({
+          ...editingProduct,
+          image: primary,
+          imageHover: hover,
+          gallery: updatedGallery,
+        });
+      } else {
+        setNewProd(prev => ({
+          ...prev,
+          image: primary,
+          imageHover: hover,
+          gallery: updatedGallery,
+        }));
+      }
+      showToast(`Successfully uploaded ${newImageUrls.length} image(s) to Supabase Storage CDN!`);
+    }
   };
 
   const removeGalleryImage = (index: number) => {

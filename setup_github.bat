@@ -14,7 +14,7 @@ git remote add origin https://github.com/AtifWorkPlace/nenoflex.in.git
 git add .
 
 echo Committing changes...
-git commit -m "NenoFlex Production Update - Fix Admin Orders Pipeline & Supabase Realtime Delivery"
+git commit -m "NenoFlex Production Update - Complete Zero-Cost Vercel + Supabase Storage Optimization"
 
 echo.
 echo Pushing to GitHub...

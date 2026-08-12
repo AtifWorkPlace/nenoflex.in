@@ -1,9 +1,9 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { COLLECTIONS_LIST } from '@/data/products';
+
+export const revalidate = 86400; // Cache on Vercel CDN for 24 hours
 
 export default function CollectionsPage() {
   return (

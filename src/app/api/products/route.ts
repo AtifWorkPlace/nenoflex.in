@@ -12,6 +12,10 @@ function validateProductSchema(prod: any): { valid: boolean; errors: string[] } 
   if (!prod.brand || typeof prod.brand !== 'string') errors.push('Brand is required');
   if (!prod.category || typeof prod.category !== 'string') errors.push('Category is required');
 
+  if (prod.image && typeof prod.image === 'string' && prod.image.startsWith('data:image') && prod.image.length > 100000) {
+    errors.push('Raw Base64 image payload prohibited on /api/products. Upload images directly to Supabase Storage CDN first.');
+  }
+
   return { valid: errors.length === 0, errors };
 }
 

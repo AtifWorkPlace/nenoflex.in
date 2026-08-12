@@ -1,8 +1,8 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
 import { ShieldCheck, Sparkles, Award, Truck, RotateCcw, HelpCircle, CheckCircle } from 'lucide-react';
+
+export const revalidate = 86400; // Cache on Vercel CDN for 24 hours
 
 export default function AboutPage() {
   return (

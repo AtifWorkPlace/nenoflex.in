@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Product, Order } from '@/types';
+import { compressImageDataUrl } from '@/lib/imageOptimizer';
 
 // Helper function to normalize raw database records into standard Product format
 export function normalizeProductFromDb(item: any): Product {
@@ -98,5 +99,71 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   } catch (e) {
     console.error('[Supabase Realtime Client Init Error]:', e);
     return null;
+  }
+}
+
+/**
+ * Direct Browser-to-Supabase-Storage Image Upload
+ * Compresses the image in browser, uploads directly to Supabase Storage bucket 'products',
+ * and returns the public CDN URL.
+ * Image bytes NEVER pass through Vercel serverless functions or /api/products!
+ */
+export async function uploadProductImageDirectlyToSupabase(
+  fileOrDataUrl: File | string,
+  fileNamePrefix: string = 'prod'
+): Promise<string> {
+  if (typeof window === 'undefined') return '';
+
+  try {
+    let compressedDataUrl: string;
+    if (typeof fileOrDataUrl !== 'string') {
+      compressedDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(fileOrDataUrl);
+      });
+    } else {
+      compressedDataUrl = fileOrDataUrl;
+    }
+
+    // Compress image in browser canvas to 800px WebP (~100-300KB)
+    const compressed = await compressImageDataUrl(compressedDataUrl, 800, 0.78);
+
+    // Convert data URL to Blob
+    const response = await fetch(compressed);
+    const blob = await response.blob();
+
+    const client = getSupabaseBrowserClient();
+    if (!client) {
+      console.warn('[Direct Storage Upload]: Supabase browser client unavailable, using compressed data string');
+      return compressed;
+    }
+
+    const fileExt = blob.type.includes('webp') ? 'webp' : 'jpg';
+    const cleanPrefix = fileNamePrefix.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+    const filePath = `catalog/${cleanPrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+
+    // Upload directly to Supabase Storage bucket 'products'
+    const { data, error } = await client.storage
+      .from('products')
+      .upload(filePath, blob, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: blob.type || 'image/webp',
+      });
+
+    if (error) {
+      console.warn('[Direct Storage Upload Warning]: Bucket upload failed:', error.message);
+      return compressed;
+    }
+
+    // Return public CDN URL directly from Supabase Storage
+    const { data: publicUrlData } = client.storage.from('products').getPublicUrl(data.path);
+    console.log('[Direct Storage Upload Success]:', publicUrlData.publicUrl);
+    return publicUrlData.publicUrl;
+  } catch (e: any) {
+    console.error('[Direct Storage Upload Exception]:', e?.message || e);
+    return typeof fileOrDataUrl === 'string' ? fileOrDataUrl : '';
   }
 }

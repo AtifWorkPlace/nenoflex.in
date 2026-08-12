@@ -19,7 +19,7 @@ git add .
 
 # Generate timestamped commit message
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
-$commitMsg = "NenoFlex Production Update [$timestamp] - Fix Admin Orders Pipeline & Supabase Realtime Delivery"
+$commitMsg = "NenoFlex Production Update [$timestamp] - Complete Zero-Cost Vercel + Supabase Storage Optimization"
 
 Write-Host "Committing: $commitMsg" -ForegroundColor Yellow
 git commit -m "$commitMsg"
