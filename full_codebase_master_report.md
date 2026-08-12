@@ -1,6 +1,6 @@
 # NenoFlex (`nenoflex.in`) — Comprehensive Architecture & Full Codebase Master Report
 
-**Document Version**: 6.0.0  
+**Document Version**: 7.0.0  
 **Last Updated**: 2026-08-12  
 **Target Environment**: Production (`https://nenoflex.in`)  
 **Host Platform**: Vercel (Hobby Tier - ₹0 Budget)  
@@ -13,7 +13,7 @@
 1. [Executive Summary & System Architecture](#1-executive-summary--system-architecture)
 2. [Site Design, Aesthetic System & Visual Tokens](#2-site-design-aesthetic-system--visual-tokens)
 3. [Zero-Cost Vercel + Supabase Storage Optimization](#3-zero-cost-vercel--supabase-storage-optimization)
-4. [Storage Security & Signed Upload URL Architecture](#4-storage-security--signed-upload-url-architecture)
+4. [Native Supabase SDK Signed Upload URL Architecture](#4-native-supabase-sdk-signed-upload-url-architecture)
 5. [Cryptographic Security, Auth & Data Integrity](#5-cryptographic-security-auth--data-integrity)
 6. [Realtime Order Pipeline & Concurrency Control](#6-realtime-order-pipeline--concurrency-control)
 7. [Complete Codebase File Implementations](#7-complete-codebase-file-implementations)
@@ -53,7 +53,7 @@ NenoFlex (`nenoflex.in`) is an enterprise-grade, high-performance thrift streetw
                 ┌───────────────────────────┼───────────────────────────┐
                 ▼                           ▼                           ▼
          SERVER SIDE DATA            HMAC SHA-256 JWT           SIGNED STORAGE UPLOAD
-       getInitialPageData()           Auth Verification         (Browser Canvas WebP PUT)
+       getInitialPageData()           Auth Verification         (uploadToSignedUrl SDK)
                 │                           │                           │
                 ▼                           ▼                           ▼
        SUPABASE CLOUD DB           AUTHENTICATED API           SUPABASE STORAGE CDN
@@ -112,9 +112,9 @@ To operate at **₹0 extra cost** without incurring Vercel Fast Origin Transfer 
 1. **Direct Browser WebP Compression**:
    * Admin browser resizes image to max 800px width in an HTML5 Canvas.
    * Canvas converts image directly to 0.78 quality WebP `Blob` (`~100KB–250KB`).
-2. **Signed Upload URL Direct Storage Upload**:
-   * Browser requests a Signed Upload URL from `/api/admin/create-upload-url` (authenticated via admin HMAC token).
-   * Browser performs direct HTTP `PUT` sending the WebP Blob directly to Supabase Storage CDN.
+2. **Native Supabase SDK Signed Upload**:
+   * Server generates signed upload path & token via `supabase.storage.from('products').createSignedUploadUrl(filePath)`.
+   * Browser uploads directly using `supabase.storage.from('products').uploadToSignedUrl(path, token, blobToUpload, options)`.
    * **Zero image bytes pass through Vercel serverless functions during upload.**
    * `/api/products` receives only lightweight HTTP URL strings (~80 characters).
 3. **Payload Protection**:
@@ -126,7 +126,7 @@ To operate at **₹0 extra cost** without incurring Vercel Fast Origin Transfer 
 
 ---
 
-## 4. STORAGE SECURITY & SIGNED UPLOAD URL ARCHITECTURE
+## 4. NATIVE SUPABASE SDK SIGNED UPLOAD URL ARCHITECTURE
 
 To prevent unauthorized file uploads while keeping storage uploads direct from browser to Supabase Storage:
 
@@ -136,8 +136,8 @@ To prevent unauthorized file uploads while keeping storage uploads direct from b
    * Direct unauthenticated anon writes are strictly blocked by RLS.
 2. **Signed Upload URL Issuer (`/api/admin/create-upload-url`)**:
    * Admin dashboard authenticates with HMAC SHA-256 JWT token.
-   * Server uses `SUPABASE_SERVICE_ROLE_KEY` to issue a short-lived Signed Upload URL for path `catalog/${filePath}`.
-   * Admin browser uploads WebP Blob directly via HTTP `PUT` to `signedUrl`.
+   * Server uses `SUPABASE_SERVICE_ROLE_KEY` to issue a short-lived Signed Upload URL token for path `catalog/${filePath}`.
+   * Admin browser uploads WebP Blob directly via native `uploadToSignedUrl(path, token, blobToUpload)`.
 
 ---
 
@@ -578,26 +578,42 @@ export async function uploadProductImageDirectlyToSupabase(
     });
 
     const signedData = await signedUrlRes.json();
-    if (!signedUrlRes.ok || !signedData.success || !signedData.signedUrl) {
+    if (!signedUrlRes.ok || !signedData.success || !signedData.path || !signedData.token) {
       return { success: false, error: signedData.error || 'Failed to acquire Supabase Storage upload authorization' };
     }
 
-    // Step 2: Direct HTTP PUT from Admin Browser -> Supabase Storage CDN (No Vercel relay!)
-    const directPutRes = await fetch(signedData.signedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': mimeType,
-        'x-upsert': 'true',
-      },
-      body: blobToUpload,
-    });
+    // Step 2: Direct browser upload using native Supabase SDK uploadToSignedUrl
+    const client = getSupabaseBrowserClient();
+    if (client) {
+      const { data: uploadData, error: uploadError } = await client.storage
+        .from('products')
+        .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
+          contentType: mimeType,
+          upsert: true,
+        });
 
-    if (!directPutRes.ok) {
-      const putErrorText = await directPutRes.text();
-      return { success: false, error: `Supabase Storage Direct PUT failed: ${putErrorText}` };
+      if (!uploadError && uploadData) {
+        return { success: true, url: signedData.publicUrl };
+      }
     }
 
-    return { success: true, url: signedData.publicUrl };
+    // Fallback: Direct HTTP PUT from Admin Browser -> Supabase Storage CDN
+    if (signedData.signedUrl) {
+      const directPutRes = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': mimeType,
+          'x-upsert': 'true',
+        },
+        body: blobToUpload,
+      });
+
+      if (directPutRes.ok) {
+        return { success: true, url: signedData.publicUrl };
+      }
+    }
+
+    return { success: false, error: 'Supabase Storage upload failed. Direct upload rejected.' };
   } catch (e: any) {
     return { success: false, error: e?.message || 'Storage upload exception occurred' };
   }
@@ -810,11 +826,11 @@ Exit Code: 0 (SUCCESS)
 
 ## 9. SUMMARY OF ACCOMPLISHMENTS & PRODUCTION READINESS
 
-1. **Zero-Cost Storage Architecture**: Signed Upload URL issuer (`POST /api/admin/create-upload-url`) allows direct Admin Browser -> Supabase Storage CDN uploads (`HTTP PUT`). Zero image bytes pass through Vercel serverless functions.
+1. **Zero-Cost Storage Architecture**: Signed Upload URL issuer (`POST /api/admin/create-upload-url`) allows direct Admin Browser -> Supabase Storage CDN uploads (`uploadToSignedUrl` SDK method). Zero image bytes pass through Vercel serverless functions.
 2. **Storage RLS Security**: Public read access preserved for visitors, while unauthenticated anon writes are strictly blocked by RLS policies.
 3. **Payload Guard**: `/api/products` rejects Base64 payloads over 100KB with HTTP 400.
 4. **Hydration & SSR**: Initial product refresh flash eliminated with server-side page hydration.
 5. **Cryptographic Security**: Enforced HMAC SHA-256 JWT admin tokens verified with `crypto.timingSafeEqual`.
 6. **Order Pipeline & Realtime**: End-to-end atomic stock reservation, transactional rollback on error, and live WebSocket order delivery to Admin Dashboard verified.
 7. **Full Catalog Preservation**: Products `nf-101`, `nf-102`, `nf-103`, `nf-104` 100% preserved with zero ID changes or data loss.
-8. **Codebase Status**: All 20 build routes compiled cleanly with 0 type errors or lint warnings. GitHub repository [`https://github.com/AtifWorkPlace/nenoflex.in.git`](https://github.com/AtifWorkPlace/nenoflex.in.git) is up to date at commit `9b09568`.
+8. **Codebase Status**: All 20 build routes compiled cleanly with 0 type errors or lint warnings. GitHub repository [`https://github.com/AtifWorkPlace/nenoflex.in.git`](https://github.com/AtifWorkPlace/nenoflex.in.git) is up to date at commit `1e1bd4b`.

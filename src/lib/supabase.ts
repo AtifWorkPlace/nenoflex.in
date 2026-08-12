@@ -178,40 +178,24 @@ export async function uploadProductImageDirectlyToSupabase(
 
     // Step 2: Upload directly to Supabase Storage using native SDK uploadToSignedUrl
     const client = getSupabaseBrowserClient();
-    if (client) {
-      const { data: uploadData, error: uploadError } = await client.storage
-        .from('products')
-        .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
-          contentType: mimeType,
-          upsert: true,
-        });
-
-      if (!uploadError && uploadData) {
-        console.log('[Supabase Native SDK Signed Upload Success]:', signedData.publicUrl);
-        return { success: true, url: signedData.publicUrl };
-      } else if (uploadError) {
-        console.warn('[Supabase Native SDK Signed Upload Warning]:', uploadError.message);
-      }
+    if (!client) {
+      return { success: false, error: 'Supabase browser client is unconfigured' };
     }
 
-    // Fallback: Direct HTTP PUT from Admin Browser -> Supabase Storage CDN
-    if (signedData.signedUrl) {
-      const directPutRes = await fetch(signedData.signedUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': mimeType,
-          'x-upsert': 'true',
-        },
-        body: blobToUpload,
+    const { data: uploadData, error: uploadError } = await client.storage
+      .from('products')
+      .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
+        contentType: mimeType,
+        upsert: true,
       });
 
-      if (directPutRes.ok) {
-        console.log('[Supabase Direct HTTP PUT Signed Upload Success]:', signedData.publicUrl);
-        return { success: true, url: signedData.publicUrl };
-      }
+    if (uploadError || !uploadData) {
+      console.error('[Supabase Native SDK Signed Upload Error]:', uploadError?.message);
+      return { success: false, error: `Supabase Storage upload failed: ${uploadError?.message || 'Upload error'}` };
     }
 
-    return { success: false, error: 'Supabase Storage upload failed. Direct upload rejected.' };
+    console.log('[Supabase Native SDK Signed Upload Success]:', signedData.publicUrl);
+    return { success: true, url: signedData.publicUrl };
   } catch (e: any) {
     console.error('[Supabase Storage Upload Exception]:', e?.message || e);
     return { success: false, error: e?.message || 'Storage upload exception occurred' };
