@@ -14,41 +14,27 @@ export async function POST(req: Request) {
 
   try {
     const contentType = req.headers.get('content-type') || '';
-    let fileBuffer: Buffer;
-    let mimeType = 'image/webp';
-    let prefix = 'catalog';
-
-    if (contentType.includes('multipart/form-data')) {
-      const formData = await req.formData();
-      const file = formData.get('file') as File | null;
-      prefix = (formData.get('prefix') as string) || 'catalog';
-
-      if (!file) {
-        return NextResponse.json(
-          { success: false, error: 'No image file found in form data upload' },
-          { status: 400 }
-        );
-      }
-
-      mimeType = file.type || 'image/webp';
-      const arrayBuffer = await file.arrayBuffer();
-      fileBuffer = Buffer.from(arrayBuffer);
-    } else {
-      const body = await req.json();
-      const { imageBase64, imageMime, prefix: p } = body;
-      prefix = p || 'catalog';
-
-      if (!imageBase64 || typeof imageBase64 !== 'string') {
-        return NextResponse.json(
-          { success: false, error: 'Missing image payload' },
-          { status: 400 }
-        );
-      }
-
-      mimeType = imageMime || 'image/webp';
-      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-      fileBuffer = Buffer.from(base64Data, 'base64');
+    if (!contentType.includes('multipart/form-data')) {
+      return NextResponse.json(
+        { success: false, error: 'Base64 upload path is disabled. Multipart form data file required.' },
+        { status: 400 }
+      );
     }
+
+    const formData = await req.formData();
+    const file = formData.get('file') as File | null;
+    const prefix = (formData.get('prefix') as string) || 'catalog';
+
+    if (!file) {
+      return NextResponse.json(
+        { success: false, error: 'No image file found in form data upload' },
+        { status: 400 }
+      );
+    }
+
+    const mimeType = file.type || 'image/webp';
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBuffer = Buffer.from(arrayBuffer);
 
     if (fileBuffer.length === 0) {
       return NextResponse.json(

@@ -1,6 +1,6 @@
 # NenoFlex (`nenoflex.in`) — Comprehensive Architecture & Full Codebase Master Report
 
-**Document Version**: 4.0.0  
+**Document Version**: 5.0.0  
 **Last Updated**: 2026-08-12  
 **Target Environment**: Production (`https://nenoflex.in`)  
 **Host Platform**: Vercel (Hobby Tier - ₹0 Budget)  
@@ -22,16 +22,16 @@
    - 6.4 `src/lib/supabase-server.ts`
    - 6.5 `src/lib/imageOptimizer.ts`
    - 6.6 `src/lib/audio.ts`
-   - 6.7 `src/context/StoreContext.tsx`
-   - 6.8 `src/app/layout.tsx`
-   - 6.9 `src/app/api/products/route.ts`
-   - 6.10 `src/app/api/orders/route.ts`
-   - 6.11 `src/components/PromoModal.tsx`
-   - 6.12 `src/middleware.ts`
-   - 6.13 `src/app/robots.ts`
-   - 6.14 `src/app/sitemap.ts`
-   - 6.15 `supabase_schema.sql`
-   - 6.16 `setup_github.ps1`
+   - 6.7 `src/app/api/admin/upload-image/route.ts`
+   - 6.8 `src/app/api/products/route.ts`
+   - 6.9 `src/app/api/orders/route.ts`
+   - 6.10 `src/components/PromoModal.tsx`
+   - 6.11 `src/middleware.ts`
+   - 6.12 `src/app/robots.ts`
+   - 6.13 `src/app/sitemap.ts`
+   - 6.14 `supabase_schema.sql`
+   - 6.15 `setup_github.ps1`
+   - 6.16 `src/tests/zero_cost_optimization.test.ts`
 7. [Comprehensive Test Suites & Verification Results](#7-comprehensive-test-suites--verification-results)
 8. [Summary of Accomplishments & Production Readiness](#8-summary-of-accomplishments--production-readiness)
 
@@ -113,6 +113,7 @@ To operate at **₹0 extra cost** without incurring Vercel Fast Origin Transfer 
    * Admin browser resizes image to max 800px width in an HTML5 Canvas.
    * Canvas converts image to 0.78 quality WebP (`~100KB–250KB`).
    * Blob uploads directly to Supabase Storage bucket `products` using `@supabase/supabase-js`.
+   * Backup: Authenticated server route `POST /api/admin/upload-image` using `SUPABASE_SERVICE_ROLE_KEY` if browser client RLS is restricted.
    * `/api/products` receives only lightweight HTTP URL strings (~80 characters).
 2. **Payload Protection**:
    * `POST /api/products` rejects raw Base64 strings over 100KB with HTTP 400.
@@ -414,21 +415,27 @@ export class ServerAuth {
 ```typescript
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Product, Order } from '@/types';
-import { compressImageDataUrl } from '@/lib/imageOptimizer';
+import { compressImageDataUrl, compressImageFileToBlob } from '@/lib/imageOptimizer';
 
 export function normalizeProductFromDb(item: any): Product {
   if (!item) return {} as Product;
+  const primaryImg = String(item.image || '');
+  const hoverImg = String(item.imageHover ?? item.image_hover ?? primaryImg);
+  const galleryImgs = Array.isArray(item.gallery) && item.gallery.length > 0
+    ? item.gallery
+    : (primaryImg ? [primaryImg] : []);
+
   return {
-    id: String(item.id || `nf-${Date.now()}`),
-    sku: String(item.sku || 'SKU-NF-100'),
-    barcode: String(item.barcode || '8901234567890'),
-    name: String(item.name || 'Vault Product'),
+    id: String(item.id || ''),
+    sku: String(item.sku || ''),
+    barcode: String(item.barcode || ''),
+    name: String(item.name || ''),
     brand: (item.brand as Product['brand']) || 'Nike',
     category: (item.category as Product['category']) || 'Sweatshirts',
     collection: Array.isArray(item.collection) ? item.collection : ['Vintage Collection'],
     price: Number(item.price || 0),
-    showroomPrice: Number(item.showroomPrice ?? item.showroom_price ?? (item.price ? item.price * 10 : 8999)),
-    discountPercent: Number(item.discountPercent ?? item.discount_percent ?? 90),
+    showroomPrice: Number(item.showroomPrice ?? item.showroom_price ?? (item.price ? item.price * 10 : 0)),
+    discountPercent: Number(item.discountPercent ?? item.discount_percent ?? 0),
     conditionScore: Number(item.conditionScore ?? item.condition_score ?? 9.8),
     conditionGrade: (item.conditionGrade || item.condition_grade || 'Mint (9.8-10)') as Product['conditionGrade'],
     sizes: Array.isArray(item.sizes) ? item.sizes : ['M', 'L'],
@@ -439,16 +446,16 @@ export function normalizeProductFromDb(item: any): Product {
     description: String(item.description || ''),
     authenticitySeal: Boolean(item.authenticitySeal ?? item.authenticity_seal ?? true),
     sanitized: Boolean(item.sanitized ?? true),
-    image: String(item.image || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80'),
-    imageHover: String(item.imageHover ?? item.image_hover ?? item.image),
-    gallery: Array.isArray(item.gallery) && item.gallery.length > 0 ? item.gallery : [item.image],
+    image: primaryImg,
+    imageHover: hoverImg,
+    gallery: galleryImgs,
     isNewArrival: Boolean(item.isNewArrival ?? item.is_new_arrival ?? true),
     isTrending: Boolean(item.isTrending ?? item.is_trending ?? true),
     isBestSeller: Boolean(item.isBestSeller ?? item.is_best_seller ?? false),
     isLimited: Boolean(item.isLimited ?? item.is_limited ?? true),
     stockCount: Number(item.stockCount ?? item.stock_count ?? 1),
     rating: Number(item.rating || 5.0),
-    reviewsCount: Number(item.reviewsCount ?? item.reviews_count ?? 12),
+    reviewsCount: Number(item.reviewsCount ?? item.reviews_count ?? 0),
     tags: Array.isArray(item.tags) ? item.tags : ['thrift'],
   };
 }
@@ -503,110 +510,166 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   }
 }
 
+export interface StorageUploadResult {
+  success: boolean;
+  url?: string;
+  error?: string;
+}
+
 export async function uploadProductImageDirectlyToSupabase(
   fileOrDataUrl: File | string,
+  adminToken?: string | null,
   fileNamePrefix: string = 'prod'
-): Promise<string> {
-  if (typeof window === 'undefined') return '';
+): Promise<StorageUploadResult> {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'Browser environment required for image upload' };
+  }
+
+  if (!fileOrDataUrl) {
+    return { success: false, error: 'No image file provided' };
+  }
 
   try {
-    let compressedDataUrl: string;
+    let blobToUpload: Blob;
+
     if (typeof fileOrDataUrl !== 'string') {
-      compressedDataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(fileOrDataUrl);
-      });
+      blobToUpload = await compressImageFileToBlob(fileOrDataUrl, 800, 0.78);
+    } else if (fileOrDataUrl.startsWith('data:image')) {
+      const compressedDataUrl = await compressImageDataUrl(fileOrDataUrl, 800, 0.78);
+      const response = await fetch(compressedDataUrl);
+      blobToUpload = await response.blob();
+    } else if (fileOrDataUrl.startsWith('http://') || fileOrDataUrl.startsWith('https://')) {
+      return { success: true, url: fileOrDataUrl };
     } else {
-      compressedDataUrl = fileOrDataUrl;
+      return { success: false, error: 'Invalid image format provided' };
     }
 
-    const compressed = await compressImageDataUrl(compressedDataUrl, 800, 0.78);
-    const response = await fetch(compressed);
-    const blob = await response.blob();
-
     const client = getSupabaseBrowserClient();
-    if (!client) return compressed;
-
-    const fileExt = blob.type.includes('webp') ? 'webp' : 'jpg';
     const cleanPrefix = fileNamePrefix.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+    const fileExt = blobToUpload.type.includes('webp') ? 'webp' : 'jpg';
     const filePath = `catalog/${cleanPrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-    const { data, error } = await client.storage
-      .from('products')
-      .upload(filePath, blob, { cacheControl: '3600', upsert: true, contentType: blob.type || 'image/webp' });
+    if (client) {
+      const { data, error } = await client.storage
+        .from('products')
+        .upload(filePath, blobToUpload, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: blobToUpload.type || 'image/webp',
+        });
 
-    if (error) return compressed;
+      if (!error && data?.path) {
+        const { data: publicUrlData } = client.storage.from('products').getPublicUrl(data.path);
+        if (publicUrlData?.publicUrl) {
+          return { success: true, url: publicUrlData.publicUrl };
+        }
+      }
+    }
 
-    const { data: publicUrlData } = client.storage.from('products').getPublicUrl(data.path);
-    return publicUrlData.publicUrl;
+    if (adminToken) {
+      const formData = new FormData();
+      formData.append('file', blobToUpload, `image.${fileExt}`);
+      formData.append('prefix', cleanPrefix);
+
+      const serverRes = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${adminToken}` },
+        body: formData,
+      });
+
+      const serverData = await serverRes.json();
+      if (serverRes.ok && serverData.success && serverData.url) {
+        return { success: true, url: serverData.url };
+      } else if (serverData.error) {
+        return { success: false, error: serverData.error };
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Supabase Storage upload failed. Please verify storage bucket permissions.',
+    };
   } catch (e: any) {
-    return typeof fileOrDataUrl === 'string' ? fileOrDataUrl : '';
+    return { success: false, error: e?.message || 'Storage upload exception occurred' };
   }
 }
 ```
 
 ---
 
-### 6.4 `src/lib/imageOptimizer.ts`
+### 6.7 `src/app/api/admin/upload-image/route.ts`
 ```typescript
-export async function compressImageDataUrl(
-  dataUrl: string,
-  maxWidth: number = 600,
-  quality: number = 0.72
-): Promise<string> {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined' || !dataUrl || !dataUrl.startsWith('data:image')) {
-      resolve(dataUrl);
-      return;
+import { NextResponse } from 'next/server';
+import { ServerAuth } from '@/lib/auth';
+import { SupabaseServerService } from '@/lib/supabase-server';
+
+export async function POST(req: Request) {
+  const auth = ServerAuth.verifyAdminRequest(req);
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Unauthorized admin request for image upload' },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const contentType = req.headers.get('content-type') || '';
+    let fileBuffer: Buffer;
+    let mimeType = 'image/webp';
+    let prefix = 'catalog';
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      const file = formData.get('file') as File | null;
+      prefix = (formData.get('prefix') as string) || 'catalog';
+
+      if (!file) {
+        return NextResponse.json({ success: false, error: 'No file in form data' }, { status: 400 });
+      }
+
+      mimeType = file.type || 'image/webp';
+      const arrayBuffer = await file.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
+    } else {
+      const body = await req.json();
+      const { imageBase64, imageMime, prefix: p } = body;
+      prefix = p || 'catalog';
+
+      if (!imageBase64) {
+        return NextResponse.json({ success: false, error: 'Missing image payload' }, { status: 400 });
+      }
+
+      mimeType = imageMime || 'image/webp';
+      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      fileBuffer = Buffer.from(base64Data, 'base64');
     }
 
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      let width = img.width;
-      let height = img.height;
+    if (fileBuffer.length === 0) {
+      return NextResponse.json({ success: false, error: 'Payload is 0 bytes' }, { status: 400 });
+    }
 
-      if (width > maxWidth) {
-        height = Math.round((height * maxWidth) / width);
-        width = maxWidth;
-      }
+    const uploadResult = await SupabaseServerService.uploadStorageFile(fileBuffer, mimeType, prefix);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+    if (!uploadResult.success || !uploadResult.url) {
+      return NextResponse.json(
+        { success: false, error: uploadResult.error || 'Failed to persist image to Supabase Storage' },
+        { status: 500 }
+      );
+    }
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(dataUrl);
-        return;
-      }
-
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, width, height);
-
-      try {
-        const compressedWebP = canvas.toDataURL('image/webp', quality);
-        if (compressedWebP && compressedWebP.length < dataUrl.length) {
-          resolve(compressedWebP);
-          return;
-        }
-      } catch (e) {}
-
-      resolve(dataUrl);
-    };
-
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
+    return NextResponse.json({ success: true, url: uploadResult.url });
+  } catch (e: any) {
+    return NextResponse.json(
+      { success: false, error: `Upload route error: ${e?.message || 'Server exception'}` },
+      { status: 500 }
+    );
+  }
 }
 ```
 
 ---
 
-### 6.5 `src/middleware.ts`
+### 6.8 `src/middleware.ts`
 ```typescript
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -630,68 +693,21 @@ export const config = {
 
 ---
 
-### 6.6 `src/app/robots.ts`
-```typescript
-import { MetadataRoute } from 'next';
-
-export default function robots(): MetadataRoute.Robots {
-  return {
-    rules: [
-      {
-        userAgent: '*',
-        allow: '/',
-        disallow: ['/admin', '/api/admin', '/checkout', '/dashboard', '/api/orders'],
-      },
-    ],
-    sitemap: 'https://www.nenoflex.in/sitemap.xml',
-  };
-}
-```
-
----
-
-### 6.7 `src/app/sitemap.ts`
-```typescript
-import { MetadataRoute } from 'next';
-import { INITIAL_PRODUCTS } from '@/data/products';
-
-export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://www.nenoflex.in';
-
-  const productUrls = INITIAL_PRODUCTS.map((product) => ({
-    url: `${baseUrl}/product/${product.id}`,
-    lastModified: new Date(),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }));
-
-  return [
-    { url: baseUrl, lastModified: new Date(), changeFrequency: 'daily', priority: 1.0 },
-    { url: `${baseUrl}/shop`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.9 },
-    { url: `${baseUrl}/about`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/collections`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
-    ...productUrls,
-  ];
-}
-```
-
----
-
-### 6.8 `supabase_schema.sql`
+### 6.9 `supabase_schema.sql`
 ```sql
--- NenoFlex PostgreSQL Schema & Realtime Configuration
+-- NenoFlex PostgreSQL Schema & Storage Policies
 CREATE TABLE IF NOT EXISTS public.products (
   id TEXT PRIMARY KEY,
-  sku TEXT NOT NULL,
-  barcode TEXT,
+  sku TEXT UNIQUE NOT NULL,
+  barcode TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   brand TEXT NOT NULL,
   category TEXT NOT NULL,
   collection JSONB DEFAULT '[]'::jsonb,
-  price NUMERIC NOT NULL,
-  showroom_price NUMERIC,
-  discount_percent INT DEFAULT 90,
-  condition_score NUMERIC DEFAULT 9.8,
+  price NUMERIC NOT NULL CHECK (price >= 0),
+  showroom_price NUMERIC NOT NULL CHECK (showroom_price >= 0),
+  discount_percent NUMERIC DEFAULT 0,
+  condition_score NUMERIC DEFAULT 9.8 CHECK (condition_score >= 0 AND condition_score <= 10),
   condition_grade TEXT DEFAULT 'Mint (9.8-10)',
   sizes JSONB DEFAULT '[]'::jsonb,
   colors JSONB DEFAULT '[]'::jsonb,
@@ -699,16 +715,16 @@ CREATE TABLE IF NOT EXISTS public.products (
   weight TEXT,
   fit TEXT,
   description TEXT,
-  authenticity_seal BOOLEAN DEFAULT TRUE,
-  sanitized BOOLEAN DEFAULT TRUE,
+  authenticity_seal BOOLEAN DEFAULT true,
+  sanitized BOOLEAN DEFAULT true,
   image TEXT NOT NULL,
   image_hover TEXT,
   gallery JSONB DEFAULT '[]'::jsonb,
-  is_new_arrival BOOLEAN DEFAULT TRUE,
-  is_trending BOOLEAN DEFAULT TRUE,
-  is_best_seller BOOLEAN DEFAULT FALSE,
-  is_limited BOOLEAN DEFAULT TRUE,
-  stock_count INT DEFAULT 1,
+  is_new_arrival BOOLEAN DEFAULT true,
+  is_trending BOOLEAN DEFAULT true,
+  is_best_seller BOOLEAN DEFAULT false,
+  is_limited BOOLEAN DEFAULT true,
+  stock_count INT NOT NULL DEFAULT 1 CHECK (stock_count >= 0),
   rating NUMERIC DEFAULT 5.0,
   reviews_count INT DEFAULT 12,
   tags JSONB DEFAULT '[]'::jsonb,
@@ -718,40 +734,47 @@ CREATE TABLE IF NOT EXISTS public.products (
 
 CREATE TABLE IF NOT EXISTS public.orders (
   id TEXT PRIMARY KEY,
-  items JSONB NOT NULL,
-  subtotal NUMERIC NOT NULL,
-  discount NUMERIC DEFAULT 0,
-  shipping_fee NUMERIC DEFAULT 0,
-  total NUMERIC NOT NULL,
-  status TEXT DEFAULT 'Placed',
+  subtotal NUMERIC NOT NULL CHECK (subtotal >= 0),
+  discount NUMERIC DEFAULT 0 CHECK (discount >= 0),
+  shipping_fee NUMERIC DEFAULT 0 CHECK (shipping_fee >= 0),
+  total NUMERIC NOT NULL CHECK (total >= 0),
+  status TEXT NOT NULL DEFAULT 'Pending Payment',
   tracking_code TEXT,
   courier TEXT,
   shipping_address JSONB NOT NULL,
-  payment_method TEXT DEFAULT 'Prepaid',
-  payment_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  estimated_delivery TIMESTAMPTZ
+  payment_method TEXT NOT NULL,
+  items JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service Role All Orders" ON public.orders FOR ALL TO service_role USING (true);
+CREATE POLICY "Service Role All Orders" ON public.orders FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Anon Insert Orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anon Select Orders" ON public.orders FOR SELECT USING (true);
 
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 
 CREATE OR REPLACE FUNCTION decrement_stock_atomic(p_product_id TEXT, p_quantity INT)
-RETURNS BOOLEAN AS $$
-DECLARE v_current_stock INT;
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v_current_stock INT; v_new_stock INT;
 BEGIN
   SELECT stock_count INTO v_current_stock FROM public.products WHERE id = p_product_id FOR UPDATE;
-  IF v_current_stock IS NULL OR v_current_stock < p_quantity THEN
-    RETURN FALSE;
-  END IF;
-  UPDATE public.products SET stock_count = stock_count - p_quantity WHERE id = p_product_id;
-  RETURN TRUE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'PRODUCT_NOT_FOUND'); END IF;
+  IF v_current_stock < p_quantity THEN RETURN jsonb_build_object('success', false, 'error', 'INSUFFICIENT_STOCK'); END IF;
+  v_new_stock := v_current_stock - p_quantity;
+  UPDATE public.products SET stock_count = v_new_stock, updated_at = NOW() WHERE id = p_product_id;
+  RETURN jsonb_build_object('success', true, 'new_stock', v_new_stock);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('products', 'products', true, 5242880, ARRAY['image/webp', 'image/jpeg', 'image/png', 'image/gif'])
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Public Read Product Images" ON storage.objects FOR SELECT USING (bucket_id = 'products');
+CREATE POLICY "Allow Upload to Products Bucket" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'products');
+CREATE POLICY "Allow Update Products Bucket" ON storage.objects FOR UPDATE USING (bucket_id = 'products');
+CREATE POLICY "Allow Delete Products Bucket" ON storage.objects FOR DELETE USING (bucket_id = 'products');
 ```
 
 ---
@@ -789,8 +812,6 @@ Pipeline Verification Summary: 5 Passed, 0 Failed
 Security Execution Summary: 4 Passed, 0 Failed
 
 === NenoFlex Atomic Stock Concurrency Test Suite ===
-Simulating 20 simultaneous order requests for stockCount = 1...
-Results: 1 Succeeded, 19 Rejected. Final Database Stock Count: 0
 ✔ Test 1 PASSED: Exactly 1 purchase succeeded, 19 rejected (No Race Condition)
 Concurrency Execution Summary: 1 Passed, 0 Failed
 ```
@@ -801,19 +822,20 @@ Concurrency Execution Summary: 1 Passed, 0 Failed
    Creating an optimized production build ...
  ✓ Compiled successfully
    Linting and checking validity of types ...
-   Generating static pages (18/18) ...
- ✓ Generating static pages (18/18)
+   Generating static pages (19/19) ...
+ ✓ Generating static pages (19/19)
    Finalizing page optimization ...
    Collecting build traces ...
 
 Route (app)                                 Size  First Load JS
 ┌ ƒ /                                    4.41 kB         179 kB
 ├ ○ /about                                2.7 kB         103 kB
-├ ƒ /admin                               15.9 kB         187 kB
-├ ƒ /api/orders                            158 B         101 kB
-├ ƒ /api/products                          158 B         101 kB
+├ ƒ /admin                               15.9 kB         188 kB
+├ ƒ /api/admin/upload-image                159 B         101 kB
+├ ƒ /api/orders                            159 B         101 kB
+├ ƒ /api/products                          159 B         101 kB
 ├ ○ /collections                         2.09 kB         106 kB
-├ ○ /robots.txt                            158 B         101 kB
+├ ○ /robots.txt                            159 B         101 kB
 └ ○ /sitemap.xml                           158 B         101 kB
 
 Exit Code: 0 (SUCCESS)
@@ -828,4 +850,4 @@ Exit Code: 0 (SUCCESS)
 3. **Cryptographic Security**: Enforced HMAC SHA-256 JWT admin tokens with constant-time equality checks.
 4. **Order Pipeline & Realtime**: End-to-end atomic stock reservation, transactional rollback on error, and live WebSocket order delivery to Admin Dashboard verified.
 5. **Full Catalog & Data Preservation**: Products `nf-101`, `nf-102`, `nf-103`, `nf-104` 100% preserved with zero ID changes or data loss.
-6. **Codebase Status**: All 18 build routes compiled cleanly with 0 type errors or lint warnings. GitHub repository [`https://github.com/AtifWorkPlace/nenoflex.in.git`](https://github.com/AtifWorkPlace/nenoflex.in.git) is up to date.
+6. **Codebase Status**: All 19 build routes compiled cleanly with 0 type errors or lint warnings. GitHub repository [`https://github.com/AtifWorkPlace/nenoflex.in.git`](https://github.com/AtifWorkPlace/nenoflex.in.git) is up to date.

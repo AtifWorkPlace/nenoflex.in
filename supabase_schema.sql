@@ -177,24 +177,23 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Public Read Policy for Product Storage Bucket
+-- Public Read Policy for Product Storage Bucket (Customers can read product images)
 CREATE POLICY "Public Read Product Images"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'products');
 
--- Allow Upload to Products Bucket
-CREATE POLICY "Allow Upload to Products Bucket"
+-- Admin Service Role & Signed Upload Policies (Unauthenticated write blocked)
+CREATE POLICY "Service Role Upload Product Images"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'products');
+WITH CHECK (bucket_id = 'products' AND (auth.role() = 'service_role' OR auth.role() = 'authenticated'));
 
--- Allow Update Products Bucket
-CREATE POLICY "Allow Update Products Bucket"
+CREATE POLICY "Service Role Update Product Images"
 ON storage.objects FOR UPDATE
-USING (bucket_id = 'products');
+USING (bucket_id = 'products' AND (auth.role() = 'service_role' OR auth.role() = 'authenticated'));
 
--- Allow Delete Products Bucket
-CREATE POLICY "Allow Delete Products Bucket"
+CREATE POLICY "Service Role Delete Product Images"
 ON storage.objects FOR DELETE
-USING (bucket_id = 'products');
+USING (bucket_id = 'products' AND (auth.role() = 'service_role' OR auth.role() = 'authenticated'));
+
 
 

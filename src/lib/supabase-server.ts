@@ -570,5 +570,47 @@ export const SupabaseServerService = {
       console.error('[Supabase Storage Server Upload Exception]:', e?.message || e);
       return { success: false, error: e?.message || 'Server exception uploading file to Supabase Storage' };
     }
+  },
+
+  // Generate a Supabase Storage Signed Upload URL for direct browser -> Supabase Storage upload
+  createSignedUploadUrl: async (filePath: string): Promise<{ success: boolean; signedUrl?: string; token?: string; publicUrl?: string; error?: string }> => {
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) {
+      return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY or SUPABASE_URL is unconfigured on server' };
+    }
+
+    try {
+      const url = `${supabaseUrl}/storage/v1/object/upload/sign/products/${filePath}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[Supabase Signed Upload URL Error]: status ${response.status}: ${errText}`);
+        return { success: false, error: `Supabase Storage HTTP ${response.status}: ${errText}` };
+      }
+
+      const data = await response.json();
+      const signedPath = data.url || data.signedUrl || `/object/upload/sign/products/${filePath}`;
+      const fullSignedUrl = signedPath.startsWith('http') ? signedPath : `${supabaseUrl}/storage/v1${signedPath}`;
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/products/${filePath}`;
+
+      return {
+        success: true,
+        signedUrl: fullSignedUrl,
+        token: data.token,
+        publicUrl,
+      };
+    } catch (e: any) {
+      console.error('[Supabase Signed Upload URL Exception]:', e?.message || e);
+      return { success: false, error: e?.message || 'Server exception generating Signed Upload URL' };
+    }
   }
 };

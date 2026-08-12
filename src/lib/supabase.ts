@@ -150,59 +150,50 @@ export async function uploadProductImageDirectlyToSupabase(
       return { success: false, error: 'Invalid image format provided' };
     }
 
-    const client = getSupabaseBrowserClient();
     const cleanPrefix = fileNamePrefix.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
-    const fileExt = blobToUpload.type.includes('webp') ? 'webp' : 'jpg';
-    const filePath = `catalog/${cleanPrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const mimeType = blobToUpload.type || 'image/webp';
 
-    // Attempt 1: Direct browser upload to Supabase Storage bucket
-    if (client) {
-      const { data, error } = await client.storage
-        .from('products')
-        .upload(filePath, blobToUpload, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: blobToUpload.type || 'image/webp',
-        });
-
-      if (!error && data?.path) {
-        const { data: publicUrlData } = client.storage.from('products').getPublicUrl(data.path);
-        if (publicUrlData?.publicUrl) {
-          console.log('[Supabase Direct Browser Upload Success]:', publicUrlData.publicUrl);
-          return { success: true, url: publicUrlData.publicUrl };
-        }
-      } else if (error) {
-        console.warn('[Supabase Direct Browser Upload Warning]:', error.message);
-      }
+    if (!adminToken) {
+      return { success: false, error: 'Admin authentication session token missing' };
     }
 
-    // Attempt 2: Authenticated Server-Side Upload Route (If browser client is missing or blocked by RLS)
-    if (adminToken) {
-      const formData = new FormData();
-      formData.append('file', blobToUpload, `image.${fileExt}`);
-      formData.append('prefix', cleanPrefix);
+    // Step 1: Issue Signed Upload URL via authenticated API
+    const signedUrlRes = await fetch('/api/admin/create-upload-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        fileNamePrefix: cleanPrefix,
+        mimeType,
+      }),
+    });
 
-      const serverRes = await fetch('/api/admin/upload-image', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${adminToken}`,
-        },
-        body: formData,
-      });
-
-      const serverData = await serverRes.json();
-      if (serverRes.ok && serverData.success && serverData.url) {
-        console.log('[Supabase Authenticated Server Upload Success]:', serverData.url);
-        return { success: true, url: serverData.url };
-      } else if (serverData.error) {
-        return { success: false, error: serverData.error };
-      }
+    const signedData = await signedUrlRes.json();
+    if (!signedUrlRes.ok || !signedData.success || !signedData.signedUrl) {
+      console.warn('[Signed Upload URL Error]:', signedData.error);
+      return { success: false, error: signedData.error || 'Failed to acquire Supabase Storage upload authorization' };
     }
 
-    return {
-      success: false,
-      error: 'Supabase Storage upload failed. Please verify storage bucket permissions and admin session.',
-    };
+    // Step 2: Direct HTTP PUT from Admin Browser -> Supabase Storage CDN
+    const directPutRes = await fetch(signedData.signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': mimeType,
+        'x-upsert': 'true',
+      },
+      body: blobToUpload,
+    });
+
+    if (!directPutRes.ok) {
+      const putErrorText = await directPutRes.text();
+      console.error('[Direct Browser Storage PUT Error]:', putErrorText);
+      return { success: false, error: `Supabase Storage Direct PUT failed: ${putErrorText}` };
+    }
+
+    console.log('[Direct Browser Storage Upload Success]:', signedData.publicUrl);
+    return { success: true, url: signedData.publicUrl };
   } catch (e: any) {
     console.error('[Supabase Storage Upload Exception]:', e?.message || e);
     return { success: false, error: e?.message || 'Storage upload exception occurred' };
