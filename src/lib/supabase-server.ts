@@ -527,6 +527,39 @@ export const SupabaseServerService = {
     }
   },
 
+  // Self-healing bucket verification for server service-role operations
+  ensureProductsBucketExists: async (): Promise<boolean> => {
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) return false;
+
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(supabaseUrl, apiKey);
+      const { data: buckets } = await supabase.storage.listBuckets();
+      
+      const exists = buckets?.some(b => b.id === 'products');
+      if (exists) return true;
+
+      console.log('[Supabase Server Storage]: Bucket "products" missing. Creating bucket "products"...');
+      const { error: createErr } = await supabase.storage.createBucket('products', {
+        public: true,
+        fileSizeLimit: 5242880,
+        allowedMimeTypes: ['image/webp', 'image/jpeg', 'image/png', 'image/gif'],
+      });
+
+      if (createErr) {
+        console.error('[Supabase Server Storage]: Failed to self-heal bucket "products":', createErr.message);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error('[Supabase Server Storage]: Bucket check exception:', e);
+      return false;
+    }
+  },
+
   // Upload file directly to Supabase Storage bucket 'products'
   uploadStorageFile: async (
     fileBuffer: Buffer,
@@ -537,6 +570,12 @@ export const SupabaseServerService = {
     const supabaseUrl = getSupabaseUrl();
     if (!supabaseUrl || !apiKey) {
       return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY or SUPABASE_URL is unconfigured on server' };
+    }
+
+    // Verify bucket exists before uploading
+    const bucketReady = await SupabaseServerService.ensureProductsBucketExists();
+    if (!bucketReady) {
+      return { success: false, error: "Production Storage bucket 'products' does not exist." };
     }
 
     try {
