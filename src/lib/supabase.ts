@@ -190,7 +190,16 @@ export async function uploadProductImageDirectlyToSupabase(
       });
 
     if (uploadError || !uploadData) {
-      console.error('[Supabase Native SDK Signed Upload Error]:', uploadError?.message);
+      console.error('[Supabase Native SDK Signed Upload Error Details]:', {
+        message: uploadError?.message,
+        name: uploadError?.name,
+        status: (uploadError as any)?.status,
+        statusCode: (uploadError as any)?.statusCode,
+        path: signedData.path,
+        bucket: 'products',
+        mimeType,
+        blobSize: blobToUpload.size,
+      });
       return { success: false, error: `Supabase Storage upload failed: ${uploadError?.message || 'Upload error'}` };
     }
 

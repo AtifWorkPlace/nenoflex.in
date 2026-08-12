@@ -19,11 +19,7 @@ function getSupabaseUrl(): string {
 function getPrivilegedKey(): string | null {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   if (serviceKey) return serviceKey;
-  
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (process.env.NODE_ENV !== 'production' && anonKey) {
-    return anonKey;
-  }
+  console.error('[STORAGE CRITICAL]: SUPABASE_SERVICE_ROLE_KEY environment variable is not set. Storage administration and signed upload URL creation will fail.');
   return null;
 }
 
