@@ -12,8 +12,18 @@ function validateProductSchema(prod: any): { valid: boolean; errors: string[] } 
   if (!prod.brand || typeof prod.brand !== 'string') errors.push('Brand is required');
   if (!prod.category || typeof prod.category !== 'string') errors.push('Category is required');
 
-  if (prod.image && typeof prod.image === 'string' && prod.image.startsWith('data:image') && prod.image.length > 100000) {
-    errors.push('Raw Base64 image payload prohibited on /api/products. Upload images directly to Supabase Storage CDN first.');
+  const checkImageString = (img: string, label: string) => {
+    if (typeof img === 'string') {
+      if (img.startsWith('data:image') || img.includes('base64')) {
+        errors.push(`Product image must be uploaded to Supabase Storage first. Raw Base64 payloads are prohibited on ${label}.`);
+      }
+    }
+  };
+
+  if (prod.image) checkImageString(prod.image, 'main image');
+  if (prod.imageHover) checkImageString(prod.imageHover, 'hover image');
+  if (Array.isArray(prod.gallery)) {
+    prod.gallery.forEach((img: any, idx: number) => checkImageString(img, `gallery[${idx}]`));
   }
 
   return { valid: errors.length === 0, errors };

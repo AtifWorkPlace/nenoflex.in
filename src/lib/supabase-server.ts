@@ -529,5 +529,46 @@ export const SupabaseServerService = {
     } catch (e) {
       return true;
     }
+  },
+
+  // Upload file directly to Supabase Storage bucket 'products'
+  uploadStorageFile: async (fileBuffer: Buffer, mimeType: string, fileNamePrefix: string): Promise<{ success: boolean; url?: string; error?: string }> => {
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) {
+      return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY or SUPABASE_URL is unconfigured on server' };
+    }
+
+    try {
+      const ext = mimeType.includes('webp') ? 'webp' : (mimeType.includes('png') ? 'png' : 'jpg');
+      const cleanPrefix = fileNamePrefix.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+      const filename = `${cleanPrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const storagePath = `catalog/${filename}`;
+
+      const uploadUrl = `${supabaseUrl}/storage/v1/object/products/${storagePath}`;
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': mimeType,
+          'x-upsert': 'true',
+        },
+        body: new Uint8Array(fileBuffer),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[Supabase Storage Server Upload Error]: status ${response.status}: ${errText}`);
+        return { success: false, error: `Supabase Storage HTTP ${response.status}: ${errText}` };
+      }
+
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/products/${storagePath}`;
+      return { success: true, url: publicUrl };
+    } catch (e: any) {
+      console.error('[Supabase Storage Server Upload Exception]:', e?.message || e);
+      return { success: false, error: e?.message || 'Server exception uploading file to Supabase Storage' };
+    }
   }
 };

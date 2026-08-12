@@ -166,3 +166,35 @@ CREATE POLICY "Service Role All Audit Logs" ON public.audit_logs FOR ALL USING (
 -- 8. ENABLE SUPABASE REALTIME PUBLICATION FOR ORDERS
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 
+-- 9. SUPABASE STORAGE BUCKET & RLS POLICIES FOR 'products' BUCKET
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'products',
+  'products',
+  true,
+  5242880,
+  ARRAY['image/webp', 'image/jpeg', 'image/png', 'image/gif']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Public Read Policy for Product Storage Bucket
+CREATE POLICY "Public Read Product Images"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'products');
+
+-- Allow Upload to Products Bucket
+CREATE POLICY "Allow Upload to Products Bucket"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'products');
+
+-- Allow Update Products Bucket
+CREATE POLICY "Allow Update Products Bucket"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'products');
+
+-- Allow Delete Products Bucket
+CREATE POLICY "Allow Delete Products Bucket"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'products');
+
+

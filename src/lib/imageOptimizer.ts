@@ -1,8 +1,69 @@
 /**
  * HTML5 Canvas Image Optimizer
- * Resizes and compresses device photos down to WebP/JPEG (~20KB-40KB)
- * to ensure zero Vercel 4.5MB payload limit errors and instant multi-device sync.
+ * Resizes and compresses device photos directly down to WebP Blobs/Strings (~100-250KB)
+ * to eliminate Vercel payload limits and maximize speed.
  */
+
+export async function compressImageFileToBlob(
+  file: File,
+  maxWidth: number = 800,
+  quality: number = 0.78
+): Promise<Blob> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !file) {
+      resolve(file);
+      return;
+    }
+
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob && blob.size > 0) {
+            resolve(blob);
+          } else {
+            resolve(file);
+          }
+        },
+        'image/webp',
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 export async function compressImageDataUrl(
   dataUrl: string,
   maxWidth: number = 600,

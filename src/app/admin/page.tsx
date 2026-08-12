@@ -49,6 +49,7 @@ export default function EnterpriseAdminDashboard() {
     coupons,
     siteSettings,
     isAdmin,
+    adminToken,
     userRole,
     auditLogs,
     adminLogin,
@@ -293,11 +294,17 @@ export default function EnterpriseAdminDashboard() {
   const handleDevicePosterUpload = async (file: File, posterIndex: 1 | 2 | 3) => {
     if (!file) return;
     setIsDirty(true);
-    showToast(`Uploading Poster ${posterIndex} image directly to Supabase Storage...`);
-    const publicUrl = await uploadProductImageDirectlyToSupabase(file, `poster-${posterIndex}`);
-    if (posterIndex === 1) setPosterBg1(publicUrl);
-    else if (posterIndex === 2) setPosterImg2(publicUrl);
-    else if (posterIndex === 3) setPosterImg3(publicUrl);
+    showToast(`Uploading Poster ${posterIndex} image to Supabase Storage...`);
+    const res = await uploadProductImageDirectlyToSupabase(file, adminToken, `poster-${posterIndex}`);
+    
+    if (!res.success || !res.url) {
+      showToast(`❌ Poster Upload Failed: ${res.error || 'Upload error'}`);
+      return;
+    }
+
+    if (posterIndex === 1) setPosterBg1(res.url);
+    else if (posterIndex === 2) setPosterImg2(res.url);
+    else if (posterIndex === 3) setPosterImg3(res.url);
     showToast(`Poster ${posterIndex} uploaded! Click "Save Settings" to publish.`);
   };
 
@@ -305,10 +312,16 @@ export default function EnterpriseAdminDashboard() {
   const handleDevicePromoUpload = async (file: File) => {
     if (!file) return;
     setIsDirty(true);
-    showToast('Uploading Promo image directly to Supabase Storage...');
-    const publicUrl = await uploadProductImageDirectlyToSupabase(file, 'promo');
-    setPromoImage(publicUrl);
-    showToast('Promo image uploaded!');
+    showToast('Uploading Promo image to Supabase Storage...');
+    const res = await uploadProductImageDirectlyToSupabase(file, adminToken, 'promo');
+    
+    if (!res.success || !res.url) {
+      showToast(`❌ Promo Upload Failed: ${res.error || 'Upload error'}`);
+      return;
+    }
+
+    setPromoImage(res.url);
+    showToast('Promo image uploaded successfully to Supabase Storage!');
   };
 
   // Multi-File Product Image Upload Handler (Direct Supabase Storage CDN)
@@ -324,19 +337,23 @@ export default function EnterpriseAdminDashboard() {
     }
 
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
-    showToast(`Uploading ${filesToUpload.length} image(s) directly to Supabase Storage CDN...`);
+    showToast(`Uploading ${filesToUpload.length} image(s) to Supabase Storage CDN...`);
 
     const newImageUrls: string[] = [];
     const prefix = editingProduct ? editingProduct.id : 'new-prod';
 
     for (const file of filesToUpload) {
-      const url = await uploadProductImageDirectlyToSupabase(file, prefix);
-      if (url) newImageUrls.push(url);
+      const res = await uploadProductImageDirectlyToSupabase(file, adminToken, prefix);
+      if (res.success && res.url) {
+        newImageUrls.push(res.url);
+      } else {
+        showToast(`❌ Image "${file.name}" Upload Failed: ${res.error || 'Storage upload error'}`);
+      }
     }
 
     if (newImageUrls.length > 0) {
       const updatedGallery = [...currentGallery, ...newImageUrls].slice(0, 10);
-      const primary: string = updatedGallery[0] || (editingProduct ? editingProduct.image : newProd.image) || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80';
+      const primary: string = updatedGallery[0] || (editingProduct ? editingProduct.image : newProd.image) || '';
       const hover: string = updatedGallery[1] || primary;
 
       if (editingProduct) {
