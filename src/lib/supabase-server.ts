@@ -572,8 +572,8 @@ export const SupabaseServerService = {
     }
   },
 
-  // Generate a Supabase Storage Signed Upload URL for direct browser -> Supabase Storage upload
-  createSignedUploadUrl: async (filePath: string): Promise<{ success: boolean; signedUrl?: string; token?: string; publicUrl?: string; error?: string }> => {
+  // Generate a Supabase Storage Signed Upload URL using native Supabase SDK
+  createSignedUploadUrl: async (filePath: string): Promise<{ success: boolean; signedUrl?: string; token?: string; path?: string; publicUrl?: string; error?: string }> => {
     const apiKey = getPrivilegedKey();
     const supabaseUrl = getSupabaseUrl();
     if (!supabaseUrl || !apiKey) {
@@ -581,32 +581,23 @@ export const SupabaseServerService = {
     }
 
     try {
-      const url = `${supabaseUrl}/storage/v1/object/upload/sign/products/${filePath}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'apikey': apiKey,
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const { createClient } = await import('@supabase/supabase-js');
+      const serverClient = createClient(supabaseUrl, apiKey);
+      const { data, error } = await serverClient.storage.from('products').createSignedUploadUrl(filePath);
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[Supabase Signed Upload URL Error]: status ${response.status}: ${errText}`);
-        return { success: false, error: `Supabase Storage HTTP ${response.status}: ${errText}` };
+      if (error || !data) {
+        console.error(`[Supabase Signed Upload SDK Error]:`, error?.message);
+        return { success: false, error: error?.message || 'Supabase SDK failed to create signed upload URL' };
       }
 
-      const data = await response.json();
-      const signedPath = data.url || data.signedUrl || `/object/upload/sign/products/${filePath}`;
-      const fullSignedUrl = signedPath.startsWith('http') ? signedPath : `${supabaseUrl}/storage/v1${signedPath}`;
-      const publicUrl = `${supabaseUrl}/storage/v1/object/public/products/${filePath}`;
+      const publicUrlData = serverClient.storage.from('products').getPublicUrl(filePath);
 
       return {
         success: true,
-        signedUrl: fullSignedUrl,
+        signedUrl: data.signedUrl,
         token: data.token,
-        publicUrl,
+        path: data.path || filePath,
+        publicUrl: publicUrlData.data.publicUrl,
       };
     } catch (e: any) {
       console.error('[Supabase Signed Upload URL Exception]:', e?.message || e);

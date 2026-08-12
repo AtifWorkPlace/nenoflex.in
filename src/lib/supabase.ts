@@ -171,29 +171,47 @@ export async function uploadProductImageDirectlyToSupabase(
     });
 
     const signedData = await signedUrlRes.json();
-    if (!signedUrlRes.ok || !signedData.success || !signedData.signedUrl) {
-      console.warn('[Signed Upload URL Error]:', signedData.error);
+    if (!signedUrlRes.ok || !signedData.success || !signedData.path || !signedData.token) {
+      console.warn('[Signed Upload Authorization Error]:', signedData.error);
       return { success: false, error: signedData.error || 'Failed to acquire Supabase Storage upload authorization' };
     }
 
-    // Step 2: Direct HTTP PUT from Admin Browser -> Supabase Storage CDN
-    const directPutRes = await fetch(signedData.signedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': mimeType,
-        'x-upsert': 'true',
-      },
-      body: blobToUpload,
-    });
+    // Step 2: Upload directly to Supabase Storage using native SDK uploadToSignedUrl
+    const client = getSupabaseBrowserClient();
+    if (client) {
+      const { data: uploadData, error: uploadError } = await client.storage
+        .from('products')
+        .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
+          contentType: mimeType,
+          upsert: true,
+        });
 
-    if (!directPutRes.ok) {
-      const putErrorText = await directPutRes.text();
-      console.error('[Direct Browser Storage PUT Error]:', putErrorText);
-      return { success: false, error: `Supabase Storage Direct PUT failed: ${putErrorText}` };
+      if (!uploadError && uploadData) {
+        console.log('[Supabase Native SDK Signed Upload Success]:', signedData.publicUrl);
+        return { success: true, url: signedData.publicUrl };
+      } else if (uploadError) {
+        console.warn('[Supabase Native SDK Signed Upload Warning]:', uploadError.message);
+      }
     }
 
-    console.log('[Direct Browser Storage Upload Success]:', signedData.publicUrl);
-    return { success: true, url: signedData.publicUrl };
+    // Fallback: Direct HTTP PUT from Admin Browser -> Supabase Storage CDN
+    if (signedData.signedUrl) {
+      const directPutRes = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': mimeType,
+          'x-upsert': 'true',
+        },
+        body: blobToUpload,
+      });
+
+      if (directPutRes.ok) {
+        console.log('[Supabase Direct HTTP PUT Signed Upload Success]:', signedData.publicUrl);
+        return { success: true, url: signedData.publicUrl };
+      }
+    }
+
+    return { success: false, error: 'Supabase Storage upload failed. Direct upload rejected.' };
   } catch (e: any) {
     console.error('[Supabase Storage Upload Exception]:', e?.message || e);
     return { success: false, error: e?.message || 'Storage upload exception occurred' };
