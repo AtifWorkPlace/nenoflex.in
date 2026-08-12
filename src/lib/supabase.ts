@@ -176,35 +176,49 @@ export async function uploadProductImageDirectlyToSupabase(
       return { success: false, error: signedData.error || 'Failed to acquire Supabase Storage upload authorization' };
     }
 
-    // Step 2: Upload directly to Supabase Storage using native SDK uploadToSignedUrl
+    // Step 2: Upload directly to Supabase Storage
     const client = getSupabaseBrowserClient();
-    if (!client) {
-      return { success: false, error: 'Supabase browser client is unconfigured' };
+    if (client) {
+      const { data: uploadData, error: uploadError } = await client.storage
+        .from('products')
+        .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
+          contentType: mimeType,
+          upsert: true,
+        });
+
+      if (!uploadError && uploadData) {
+        console.log('[Supabase Native SDK Signed Upload Success]:', signedData.publicUrl);
+        return { success: true, url: signedData.publicUrl };
+      } else if (uploadError) {
+        console.warn('[Supabase Native SDK Signed Upload Warning]:', {
+          message: uploadError?.message,
+          status: (uploadError as any)?.status,
+        });
+      }
     }
 
-    const { data: uploadData, error: uploadError } = await client.storage
-      .from('products')
-      .uploadToSignedUrl(signedData.path, signedData.token, blobToUpload, {
-        contentType: mimeType,
-        upsert: true,
+    // Step 3: Direct HTTP PUT to Signed URL (Zero-Key Storage CDN Upload)
+    if (signedData.signedUrl) {
+      const directPutRes = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': mimeType,
+          'x-upsert': 'true',
+        },
+        body: blobToUpload,
       });
 
-    if (uploadError || !uploadData) {
-      console.error('[Supabase Native SDK Signed Upload Error Details]:', {
-        message: uploadError?.message,
-        name: uploadError?.name,
-        status: (uploadError as any)?.status,
-        statusCode: (uploadError as any)?.statusCode,
-        path: signedData.path,
-        bucket: 'products',
-        mimeType,
-        blobSize: blobToUpload.size,
-      });
-      return { success: false, error: `Supabase Storage upload failed: ${uploadError?.message || 'Upload error'}` };
+      if (directPutRes.ok) {
+        console.log('[Supabase Storage Direct Signed PUT Success]:', signedData.publicUrl);
+        return { success: true, url: signedData.publicUrl };
+      } else {
+        const errText = await directPutRes.text();
+        console.error('[Supabase Storage Direct Signed PUT Error]:', directPutRes.status, errText);
+        return { success: false, error: `Supabase Storage HTTP ${directPutRes.status}: ${errText}` };
+      }
     }
 
-    console.log('[Supabase Native SDK Signed Upload Success]:', signedData.publicUrl);
-    return { success: true, url: signedData.publicUrl };
+    return { success: false, error: 'Supabase Storage signed upload authorization invalid or rejected' };
   } catch (e: any) {
     console.error('[Supabase Storage Upload Exception]:', e?.message || e);
     return { success: false, error: e?.message || 'Storage upload exception occurred' };
