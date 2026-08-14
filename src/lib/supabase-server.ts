@@ -90,7 +90,7 @@ export const SupabaseServerService = {
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`,
         },
-        cache: 'no-store',
+        next: { revalidate: 30, tags: ['catalog'] },
       });
       if (resSettings.ok) {
         const dataSettings = await resSettings.json();
@@ -107,7 +107,7 @@ export const SupabaseServerService = {
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`,
         },
-        cache: 'no-store',
+        next: { revalidate: 30, tags: ['catalog'] },
       });
       if (res.ok) {
         const data = await res.json();
@@ -248,7 +248,7 @@ export const SupabaseServerService = {
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`,
         },
-        cache: 'no-store',
+        next: { revalidate: 30, tags: ['catalog'] },
       });
       if (res.ok) {
         const data = await res.json();

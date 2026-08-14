@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { HeroCanvas } from '@/components/HeroCanvas';
+import { HaoqiCreamHeroSection } from '@/components/HaoqiCreamHeroSection';
 import { ProductCard } from '@/components/ProductCard';
 import { useStore } from '@/context/StoreContext';
 import { BRANDS_LIST } from '@/data/products';
@@ -199,26 +200,8 @@ export default function HomePage() {
 
   return (
     <div className="relative min-h-screen bg-black text-white font-sans">
-      {/* HERO SHOWCASE SECTION */}
-      <section className="relative min-h-[85vh] bg-black text-white flex flex-col items-center justify-between px-4 text-center overflow-hidden py-12">
-        <HeroCanvas />
-
-        <div className="z-10 my-auto flex flex-col items-center justify-center space-y-6 max-w-4xl">
-          <h1 className="luxury-title text-8xl sm:text-[13rem] md:text-[16rem] font-bold text-white tracking-tighter leading-none select-none">
-            flex
-          </h1>
-
-          <div className="pt-4">
-            <Link
-              href="/shop"
-              className="px-6 py-2.5 rounded-full bg-transparent text-white font-mono text-xs uppercase tracking-wider border border-white/20 hover:bg-white hover:text-black transition-all hover:scale-105"
-              suppressHydrationWarning
-            >
-              {siteSettings.heroCtaText || 'Shop now'}
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* SaaS-Style Matte Black Hero Section with Instagram Warehouse Stores & Pan-India Proof */}
+      <HaoqiCreamHeroSection />
 
       {/* CONTINUOUS MOVING TICKER BANNER */}
       <div className="w-full bg-black border-y border-neutral-800 py-3 overflow-hidden font-mono text-[11px] uppercase tracking-widest text-neutral-300">
