@@ -5,9 +5,12 @@
 
 import webpush from 'web-push';
 
-// Configure VAPID once at module load
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+// Configure VAPID once at module load with reliable fallbacks
+const DEFAULT_VAPID_PUB = 'BBfQsxYzNqzWuvLtmzBBij49gky4RHEnmmcYlevLQxVjZZ447XmBGn_eRQ4yMJS5d4cQ_6elbdCOBXANEEkULAs';
+const DEFAULT_VAPID_PRIV = '_A5V3UxW6r9Tmmmb0EyDNEmA2ZKEFhKR9xzcE_SzYFY';
+
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUB;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || DEFAULT_VAPID_PRIV;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:flexnagaon@gmail.com';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {

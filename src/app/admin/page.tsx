@@ -275,6 +275,17 @@ export default function EnterpriseAdminDashboard() {
     initPush();
   }, [isAdmin, adminToken]);
 
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
   const enablePushNotifications = async () => {
     if (!adminToken) return;
     setPushLoading(true);
@@ -288,11 +299,26 @@ export default function EnterpriseAdminDashboard() {
       }
 
       const reg = await navigator.serviceWorker.ready;
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidKey) { showToast('VAPID key not configured'); return; }
 
-      // Convert VAPID public key to Uint8Array
-      const keyBytes = Uint8Array.from(atob(vapidKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+      // 1. Resolve VAPID public key dynamically from env, status endpoint, or reliable fallback
+      let vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BBfQsxYzNqzWuvLtmzBBij49gky4RHEnmmcYlevLQxVjZZ447XmBGn_eRQ4yMJS5d4cQ_6elbdCOBXANEEkULAs';
+      try {
+        const statusRes = await fetch('/api/admin/notifications/status', {
+          headers: { 'Authorization': `Bearer ${adminToken}` },
+        });
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.vapidPublicKey) vapidKey = statusData.vapidPublicKey;
+        }
+      } catch {}
+
+      if (!vapidKey) {
+        showToast('VAPID key could not be resolved.');
+        return;
+      }
+
+      // Convert VAPID public key to Uint8Array safely
+      const keyBytes = urlBase64ToUint8Array(vapidKey);
 
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -320,6 +346,7 @@ export default function EnterpriseAdminDashboard() {
         showToast('Failed to register device: ' + data.message);
       }
     } catch (err: any) {
+      console.error('[Push Setup Error]:', err);
       showToast('Push setup error: ' + (err?.message || 'Unknown'));
     } finally {
       setPushLoading(false);
