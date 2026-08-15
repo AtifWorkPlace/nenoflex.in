@@ -148,6 +148,72 @@ export default function EnterpriseAdminDashboard() {
   const [newBrandLogo, setNewBrandLogo] = useState('✨');
   const [newBrandOrigin, setNewBrandOrigin] = useState('Japan');
 
+  // Navbar Nav Links Editor State
+  const DEFAULT_NAV_LINKS = [
+    { label: 'Home', href: '/' },
+    { label: 'Sweatshirts', href: '/shop?category=Sweatshirts' },
+    { label: 'Jerseys', href: '/shop?category=Jerseys' },
+    { label: 'Jackets', href: '/shop?category=Jackets' },
+    { label: 'Hoodies', href: '/shop?category=Hoodies' },
+    { label: 'Shop All', href: '/shop?category=All' },
+  ];
+  const [navLinksLocal, setNavLinksLocal] = useState<Array<{ label: string; href: string }>>(
+    siteSettings.navLinks && siteSettings.navLinks.length > 0 ? siteSettings.navLinks : DEFAULT_NAV_LINKS
+  );
+  const [newNavLabel, setNewNavLabel] = useState('');
+  const [newNavHref, setNewNavHref] = useState('');
+  const [editingNavIdx, setEditingNavIdx] = useState<number | null>(null);
+  const [editNavLabel, setEditNavLabel] = useState('');
+  const [editNavHref, setEditNavHref] = useState('');
+  const [isSavingNav, setIsSavingNav] = useState(false);
+
+  const saveNavLinks = async (links: Array<{ label: string; href: string }>) => {
+    setIsSavingNav(true);
+    await updateSiteSettings({ ...siteSettings, navLinks: links });
+    setIsSavingNav(false);
+    showToast('Navbar links saved!');
+  };
+
+  const addNavLink = () => {
+    if (!newNavLabel.trim() || !newNavHref.trim()) return;
+    const updated = [...navLinksLocal, { label: newNavLabel.trim(), href: newNavHref.trim() }];
+    setNavLinksLocal(updated);
+    saveNavLinks(updated);
+    setNewNavLabel('');
+    setNewNavHref('');
+  };
+
+  const deleteNavLink = (idx: number) => {
+    const updated = navLinksLocal.filter((_, i) => i !== idx);
+    setNavLinksLocal(updated);
+    saveNavLinks(updated);
+  };
+
+  const moveNavLink = (idx: number, dir: -1 | 1) => {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= navLinksLocal.length) return;
+    const updated = [...navLinksLocal];
+    [updated[idx], updated[newIdx]] = [updated[newIdx], updated[idx]];
+    setNavLinksLocal(updated);
+    saveNavLinks(updated);
+  };
+
+  const startEditNavLink = (idx: number) => {
+    setEditingNavIdx(idx);
+    setEditNavLabel(navLinksLocal[idx].label);
+    setEditNavHref(navLinksLocal[idx].href);
+  };
+
+  const saveEditNavLink = () => {
+    if (editingNavIdx === null) return;
+    const updated = navLinksLocal.map((l, i) =>
+      i === editingNavIdx ? { label: editNavLabel.trim(), href: editNavHref.trim() } : l
+    );
+    setNavLinksLocal(updated);
+    saveNavLinks(updated);
+    setEditingNavIdx(null);
+  };
+
   // New Coupon Form
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponDiscount, setNewCouponDiscount] = useState(10);
@@ -758,102 +824,233 @@ export default function EnterpriseAdminDashboard() {
 
       {/* TAB 2: CATALOG CATEGORIES & BRANDS */}
       {activeTab === 'catalog' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-            <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Catalog Categories</h3>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCatName}
-                onChange={e => {
-                  setNewCatName(e.target.value);
-                  setIsDirty(true);
-                }}
-                placeholder="New Category Name (e.g. Vintage Denim)"
-                className="flex-1 px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
-              />
-              <button
-                onClick={() => {
-                  if (newCatName) {
-                    addCategory(newCatName);
-                    setNewCatName('');
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold uppercase cursor-pointer"
-              >
-                Add Category
-              </button>
+        <div className="space-y-6">
+
+          {/* ── NAVBAR NAVIGATION LINKS MANAGER ── */}
+          <div className="p-6 rounded-3xl bg-black border border-[#CCFF00]/20 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm font-mono uppercase text-white flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4 text-[#CCFF00]" />
+                  Navbar Navigation Links
+                </h3>
+                <p className="text-[11px] text-neutral-500 font-mono mt-0.5">Add, edit, reorder, or delete the links shown in the site header. Changes go live instantly.</p>
+              </div>
+              {isSavingNav && <span className="text-[10px] font-mono text-[#CCFF00] animate-pulse">Saving...</span>}
             </div>
 
-            <div className="space-y-1.5 text-xs text-neutral-400 font-mono max-h-96 overflow-y-auto">
-              {siteSettings.customCategories.map(cat => (
-                <div key={cat} className="flex justify-between items-center p-2.5 rounded-xl bg-neutral-900">
-                  <span className="text-white font-bold">{cat}</span>
+            {/* Live Preview Strip */}
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800 overflow-x-auto scrollbar-none">
+              <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest shrink-0">Live Preview:</span>
+              {navLinksLocal.map((link, i) => (
+                <span key={i} className="text-[11px] font-mono font-bold text-white shrink-0 border-b border-white/20 pb-0.5">{link.label}</span>
+              ))}
+            </div>
+
+            {/* Existing Nav Links List */}
+            <div className="space-y-2">
+              {navLinksLocal.map((link, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
+                  {/* Reorder Buttons */}
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      onClick={() => moveNavLink(idx, -1)}
+                      disabled={idx === 0}
+                      className="p-0.5 text-neutral-500 hover:text-white disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                      title="Move Up"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => moveNavLink(idx, 1)}
+                      disabled={idx === navLinksLocal.length - 1}
+                      className="p-0.5 text-neutral-500 hover:text-white disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                      title="Move Down"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Edit Inline or Display */}
+                  {editingNavIdx === idx ? (
+                    <div className="flex flex-1 gap-2">
+                      <input
+                        value={editNavLabel}
+                        onChange={e => setEditNavLabel(e.target.value)}
+                        placeholder="Label"
+                        className="w-28 px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white font-mono focus:outline-none focus:border-[#CCFF00]"
+                      />
+                      <input
+                        value={editNavHref}
+                        onChange={e => setEditNavHref(e.target.value)}
+                        placeholder="/shop?category=..."
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white font-mono focus:outline-none focus:border-[#CCFF00]"
+                      />
+                      <button
+                        onClick={saveEditNavLink}
+                        className="px-3 py-1.5 rounded-lg bg-[#CCFF00] text-black text-xs font-bold cursor-pointer hover:bg-white transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingNavIdx(null)}
+                        className="px-3 py-1.5 rounded-lg bg-neutral-700 text-white text-xs font-bold cursor-pointer hover:bg-neutral-600 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-1 items-center gap-3 min-w-0">
+                      <span className="text-white font-bold text-xs font-mono w-28 shrink-0 truncate">{link.label}</span>
+                      <span className="text-neutral-500 text-xs font-mono truncate flex-1">{link.href}</span>
+                      <button
+                        onClick={() => startEditNavLink(idx)}
+                        className="shrink-0 p-1.5 rounded-lg bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700 cursor-pointer transition-colors"
+                        title="Edit"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Delete */}
                   <button
-                    onClick={() => deleteCategory(cat)}
-                    className="p-1 text-neutral-500 hover:text-rose-400 cursor-pointer"
+                    onClick={() => deleteNavLink(idx)}
+                    className="shrink-0 p-1.5 rounded-lg bg-neutral-800 text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                    title="Delete"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
               ))}
             </div>
-          </div>
 
-          <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
-            <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Luxury & Streetwear Brands</h3>
-            <div className="space-y-2">
+            {/* Add New Nav Link */}
+            <div className="flex gap-2 pt-2 border-t border-neutral-800">
               <input
                 type="text"
-                value={newBrandName}
-                onChange={e => {
-                  setNewBrandName(e.target.value);
-                  setIsDirty(true);
-                }}
-                placeholder="Brand Name (e.g. Stüssy)"
-                className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
+                value={newNavLabel}
+                onChange={e => setNewNavLabel(e.target.value)}
+                placeholder="Label (e.g. Caps)"
+                className="w-36 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono focus:outline-none focus:border-[#CCFF00]"
               />
+              <input
+                type="text"
+                value={newNavHref}
+                onChange={e => setNewNavHref(e.target.value)}
+                placeholder="/shop?category=Caps"
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono focus:outline-none focus:border-[#CCFF00]"
+                onKeyDown={e => e.key === 'Enter' && addNavLink()}
+              />
+              <button
+                onClick={addNavLink}
+                disabled={!newNavLabel.trim() || !newNavHref.trim()}
+                className="px-4 py-2 rounded-xl bg-[#CCFF00] text-black text-xs font-bold uppercase cursor-pointer hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Link
+              </button>
+            </div>
+          </div>
+
+          {/* ── CATEGORIES & BRANDS (2-col grid) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
+              <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Catalog Categories</h3>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={newBrandLogo}
-                  onChange={e => setNewBrandLogo(e.target.value)}
-                  placeholder="Emoji"
-                  className="w-20 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
-                />
-                <input
-                  type="text"
-                  value={newBrandOrigin}
-                  onChange={e => setNewBrandOrigin(e.target.value)}
-                  placeholder="Origin Country"
-                  className="flex-1 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
+                  value={newCatName}
+                  onChange={e => {
+                    setNewCatName(e.target.value);
+                    setIsDirty(true);
+                  }}
+                  placeholder="New Category Name (e.g. Vintage Denim)"
+                  className="flex-1 px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
                 />
                 <button
                   onClick={() => {
-                    if (newBrandName) {
-                      addBrand({ name: newBrandName, logo: newBrandLogo, origin: newBrandOrigin });
-                      setNewBrandName('');
+                    if (newCatName) {
+                      addCategory(newCatName);
+                      setNewCatName('');
                     }
                   }}
                   className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold uppercase cursor-pointer"
                 >
-                  Add Brand
+                  Add Category
                 </button>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-neutral-400 font-mono max-h-96 overflow-y-auto">
+                {siteSettings.customCategories.map(cat => (
+                  <div key={cat} className="flex justify-between items-center p-2.5 rounded-xl bg-neutral-900">
+                    <span className="text-white font-bold">{cat}</span>
+                    <button
+                      onClick={() => deleteCategory(cat)}
+                      className="p-1 text-neutral-500 hover:text-rose-400 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="space-y-1.5 text-xs text-neutral-400 font-mono max-h-96 overflow-y-auto">
-              {siteSettings.customBrands.map(b => (
-                <div key={b.name} className="flex justify-between items-center p-2.5 rounded-xl bg-neutral-900">
-                  <span className="text-white font-bold">{b.logo} {b.name} ({b.origin})</span>
+            <div className="p-6 rounded-3xl bg-black border border-neutral-800 space-y-4">
+              <h3 className="font-bold text-sm font-mono uppercase text-white">Customize Luxury & Streetwear Brands</h3>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={newBrandName}
+                  onChange={e => {
+                    setNewBrandName(e.target.value);
+                    setIsDirty(true);
+                  }}
+                  placeholder="Brand Name (e.g. Stüssy)"
+                  className="w-full px-3.5 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newBrandLogo}
+                    onChange={e => setNewBrandLogo(e.target.value)}
+                    placeholder="Emoji"
+                    className="w-20 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={newBrandOrigin}
+                    onChange={e => setNewBrandOrigin(e.target.value)}
+                    placeholder="Origin Country"
+                    className="flex-1 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white font-mono"
+                  />
                   <button
-                    onClick={() => deleteBrand(b.name)}
-                    className="p-1 text-neutral-500 hover:text-rose-400 cursor-pointer"
+                    onClick={() => {
+                      if (newBrandName) {
+                        addBrand({ name: newBrandName, logo: newBrandLogo, origin: newBrandOrigin });
+                        setNewBrandName('');
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold uppercase cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    Add Brand
                   </button>
                 </div>
-              ))}
+              </div>
+
+              <div className="space-y-1.5 text-xs text-neutral-400 font-mono max-h-96 overflow-y-auto">
+                {siteSettings.customBrands.map(b => (
+                  <div key={b.name} className="flex justify-between items-center p-2.5 rounded-xl bg-neutral-900">
+                    <span className="text-white font-bold">{b.logo} {b.name} ({b.origin})</span>
+                    <button
+                      onClick={() => deleteBrand(b.name)}
+                      className="p-1 text-neutral-500 hover:text-rose-400 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

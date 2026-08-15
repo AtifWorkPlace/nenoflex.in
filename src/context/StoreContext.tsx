@@ -159,7 +159,15 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
     image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
     buttonText: 'Claim Offer Now',
     buttonLink: '/shop',
-  }
+  },
+  navLinks: [
+    { label: 'Home', href: '/' },
+    { label: 'Sweatshirts', href: '/shop?category=Sweatshirts' },
+    { label: 'Jerseys', href: '/shop?category=Jerseys' },
+    { label: 'Jackets', href: '/shop?category=Jackets' },
+    { label: 'Hoodies', href: '/shop?category=Hoodies' },
+    { label: 'Shop All', href: '/shop?category=All' },
+  ],
 };
 
 const getInitialCartSync = (): CartItem[] => {

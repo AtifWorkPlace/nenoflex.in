@@ -182,6 +182,8 @@ export interface SiteSettings {
     buttonText: string;
     buttonLink: string;
   };
+  // Navbar navigation links (editable from Admin)
+  navLinks?: Array<{ label: string; href: string }>;
 }
 
 export interface FilterState {

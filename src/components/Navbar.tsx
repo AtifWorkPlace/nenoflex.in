@@ -6,6 +6,15 @@ import { usePathname } from 'next/navigation';
 import { ShoppingBag, Heart, Search, User, Menu, X } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 
+const DEFAULT_NAV_LINKS = [
+  { label: 'Home', href: '/' },
+  { label: 'Sweatshirts', href: '/shop?category=Sweatshirts' },
+  { label: 'Jerseys', href: '/shop?category=Jerseys' },
+  { label: 'Jackets', href: '/shop?category=Jackets' },
+  { label: 'Hoodies', href: '/shop?category=Hoodies' },
+  { label: 'Shop All', href: '/shop?category=All' },
+];
+
 export const Navbar: React.FC = () => {
   const rawPathname = usePathname();
   const pathname = rawPathname || '';
@@ -16,6 +25,11 @@ export const Navbar: React.FC = () => {
 
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
+  // Use admin-controlled navLinks, fall back to defaults
+  const navLinks = (siteSettings.navLinks && siteSettings.navLinks.length > 0)
+    ? siteSettings.navLinks
+    : DEFAULT_NAV_LINKS;
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchInput.trim()) return;
@@ -25,51 +39,31 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-black text-white border-b border-neutral-800">
-      {/* Top Announcement Bar matching screenshot */}
+      {/* Top Announcement Bar */}
       <div className="bg-black text-neutral-300 text-xs py-1.5 px-4 text-center border-b border-neutral-800 font-mono tracking-widest">
         {siteSettings.announcementBanner}
       </div>
 
-      {/* Main Navigation Bar (Matching Screenshot 3 & 4 Layout) */}
+      {/* Main Navigation Bar */}
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Navigation Categories Left */}
+        {/* Navigation Categories Left — Dynamic from Admin */}
         <div className="hidden md:flex items-center gap-6 text-xs font-semibold uppercase tracking-wider">
-          <Link
-            href="/"
-            className={`transition-colors hover:text-white ${pathname === '/' ? 'text-white border-b-2 border-white' : 'text-neutral-400'}`}
-          >
-            Home
-          </Link>
-          <Link
-            href="/shop?category=Sweatshirts"
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
-            Sweatshirts
-          </Link>
-          <Link
-            href="/shop?category=Jerseys"
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
-            Jerseys
-          </Link>
-          <Link
-            href="/shop?category=Jackets"
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
-            Jackets
-          </Link>
-          <Link
-            href="/shop?category=Hoodies"
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
-            Hoodies
-          </Link>
-          <Link
-            href="/shop?category=All"
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
-            Shop All
-          </Link>
+          {navLinks.map((link, i) => {
+            const isActive = link.href === '/'
+              ? pathname === '/'
+              : pathname.startsWith(link.href.split('?')[0]) && link.href !== '/';
+            return (
+              <Link
+                key={i}
+                href={link.href}
+                className={`transition-colors hover:text-white ${
+                  isActive ? 'text-white border-b-2 border-white pb-0.5' : 'text-neutral-400'
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -81,14 +75,14 @@ export const Navbar: React.FC = () => {
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
 
-        {/* Center Brand Logo matching screenshots */}
+        {/* Center Brand Logo */}
         <Link href="/" className="flex items-center gap-2">
           <span className="luxury-title text-2xl font-bold tracking-tight text-white">
             Neno<span className="italic font-normal">Flex</span>
           </span>
         </Link>
 
-        {/* Right Actions (Search, Wishlist, Cart, Login Account) */}
+        {/* Right Actions */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => setSearchOpen(!searchOpen)}
@@ -124,7 +118,6 @@ export const Navbar: React.FC = () => {
             )}
           </button>
 
-          {/* Hidden Account Login Link */}
           <Link
             href="/dashboard"
             className="p-2 text-neutral-300 hover:text-white transition-colors"
@@ -135,7 +128,7 @@ export const Navbar: React.FC = () => {
         </div>
       </nav>
 
-      {/* Classic Nike-Style Search Bar */}
+      {/* Search Bar */}
       {searchOpen && (
         <div className="bg-neutral-900 border-b border-neutral-800 p-4 animate-in slide-in-from-top duration-200">
           <form onSubmit={handleSearchSubmit} className="max-w-3xl mx-auto flex items-center gap-3">
@@ -164,27 +157,21 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile Navigation Drawer */}
+      {/* Mobile Navigation Drawer — Dynamic from Admin */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-neutral-950 border-b border-neutral-800 px-6 py-6 space-y-3 font-semibold text-sm">
-          <Link href="/" onClick={() => setMobileMenuOpen(false)} className="block text-white">
-            Home
-          </Link>
-          <Link href="/shop?category=Sweatshirts" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
-            Sweatshirts
-          </Link>
-          <Link href="/shop?category=Jerseys" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
-            Jerseys
-          </Link>
-          <Link href="/shop?category=Jackets" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
-            Jackets
-          </Link>
-          <Link href="/shop?category=Hoodies" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
-            Hoodies
-          </Link>
-          <Link href="/shop?category=All" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
-            Shop All
-          </Link>
+          {navLinks.map((link, i) => (
+            <Link
+              key={i}
+              href={link.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`block transition-colors hover:text-white ${
+                pathname === link.href ? 'text-white' : 'text-neutral-400'
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
       )}
     </header>
