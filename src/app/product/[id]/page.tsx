@@ -418,7 +418,7 @@ export default function NikeStyledProductDetailPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {bestSellers.map((item) => (
-              <ProductCard key={item.id} product={item} />
+              <ProductCard key={item.id} product={item} theme="light" />
             ))}
           </div>
         </div>

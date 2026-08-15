@@ -145,7 +145,7 @@ export default function HomePage() {
 
             {/* Products Grid */}
             {jerseysToDisplay.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                 {jerseysToDisplay.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
@@ -166,7 +166,7 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {vaultGrailsList.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}
