@@ -1918,6 +1918,120 @@ export default function EnterpriseAdminDashboard() {
                 </div>
               </div>
 
+              {/* AVAILABLE SIZES CONTROL */}
+              <div className="p-4 rounded-2xl bg-black border border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>Available Product Sizes (Select Available / Active)</span>
+                  </label>
+                  <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                    Active: {((editingProduct ? editingProduct.sizes : newProd.sizes) || []).join(', ') || 'Free Size'}
+                  </span>
+                </div>
+
+                {/* Standard Apparel Sizes */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase font-semibold">Standard Apparel Sizes</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'Oversized', 'Free Size'].map((sz) => {
+                      const activeSizes = (editingProduct ? editingProduct.sizes : newProd.sizes) || [];
+                      const isAvailable = activeSizes.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => {
+                            const current = [...activeSizes];
+                            const updated = isAvailable ? current.filter(s => s !== sz) : [...current, sz];
+                            const finalSizes = updated.length > 0 ? updated : ['Free Size'];
+                            if (editingProduct) {
+                              setEditingProduct({ ...editingProduct, sizes: finalSizes });
+                            } else {
+                              setNewProd({ ...newProd, sizes: finalSizes });
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                            isAvailable
+                              ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-md scale-105'
+                              : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:border-neutral-600 hover:text-white'
+                          }`}
+                        >
+                          {isAvailable ? `✓ ${sz}` : sz}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pants / Waist Sizes */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase font-semibold">Waist / Pants Sizes</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['28', '30', '32', '34', '36', '38', '40'].map((sz) => {
+                      const activeSizes = (editingProduct ? editingProduct.sizes : newProd.sizes) || [];
+                      const isAvailable = activeSizes.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => {
+                            const current = [...activeSizes];
+                            const updated = isAvailable ? current.filter(s => s !== sz) : [...current, sz];
+                            const finalSizes = updated.length > 0 ? updated : ['Free Size'];
+                            if (editingProduct) {
+                              setEditingProduct({ ...editingProduct, sizes: finalSizes });
+                            } else {
+                              setNewProd({ ...newProd, sizes: finalSizes });
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                            isAvailable
+                              ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-md scale-105'
+                              : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:border-neutral-600 hover:text-white'
+                          }`}
+                        >
+                          {isAvailable ? `✓ ${sz}` : sz}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Shoes / Footwear Sizes */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase font-semibold">Footwear / Sneaker Sizes</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['UK 6', 'UK 7', 'UK 8', 'UK 9', 'UK 10', 'UK 11', 'UK 12'].map((sz) => {
+                      const activeSizes = (editingProduct ? editingProduct.sizes : newProd.sizes) || [];
+                      const isAvailable = activeSizes.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => {
+                            const current = [...activeSizes];
+                            const updated = isAvailable ? current.filter(s => s !== sz) : [...current, sz];
+                            const finalSizes = updated.length > 0 ? updated : ['Free Size'];
+                            if (editingProduct) {
+                              setEditingProduct({ ...editingProduct, sizes: finalSizes });
+                            } else {
+                              setNewProd({ ...newProd, sizes: finalSizes });
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                            isAvailable
+                              ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-md scale-105'
+                              : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:border-neutral-600 hover:text-white'
+                          }`}
+                        >
+                          {isAvailable ? `✓ ${sz}` : sz}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-neutral-400 mb-1 font-mono">Price (INR)</label>

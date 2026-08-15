@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -28,9 +28,21 @@ export default function NikeStyledProductDetailPage() {
   const product = products.find(p => p.id === productId) || products[0];
 
   const [activeImageIdx, setActiveImageIdx] = useState(0);
-  const [selectedSize, setSelectedSize] = useState(product?.sizes[0] || 'L');
+  const [selectedSize, setSelectedSize] = useState<string>(
+    product?.sizes && product.sizes.length > 0 ? product.sizes[0] : 'L'
+  );
   const [pincode, setPincode] = useState('');
   const [pincodeStatus, setPincodeStatus] = useState<string | null>(null);
+
+  // Sync selected size when product loads or changes
+  useEffect(() => {
+    if (product?.sizes && product.sizes.length > 0) {
+      setSelectedSize(product.sizes[0]);
+    } else {
+      setSelectedSize('Free Size');
+    }
+    setActiveImageIdx(0);
+  }, [product?.id]);
 
   // Collapsible Accordion Toggles
   const [showDescription, setShowDescription] = useState(true);
@@ -212,31 +224,39 @@ export default function NikeStyledProductDetailPage() {
             {/* Size Selector Grid */}
             <div className="space-y-3 pt-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-mono font-bold text-black uppercase tracking-wider">
-                  Select Size
+                <label className="text-xs font-mono font-bold text-black uppercase tracking-wider flex items-center gap-2">
+                  <span>Select Size:</span>
+                  <span className="px-2 py-0.5 rounded-full bg-black text-white text-[10px] font-mono font-bold">
+                    {selectedSize}
+                  </span>
                 </label>
                 <button
-                  onClick={() => showToast('Size Guide: Standard International Fit')}
+                  onClick={() => showToast('Size Guide: Authentic International Vintage Fit')}
                   className="text-xs text-neutral-500 hover:text-black flex items-center gap-1 font-mono cursor-pointer transition-colors"
                 >
                   <Ruler className="w-3.5 h-3.5" /> Size Guide
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                {product.sizes.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`py-3 rounded-xl border font-mono font-bold text-xs transition-all cursor-pointer ${
-                      selectedSize === size
-                        ? 'border-black bg-black text-white shadow-md'
-                        : 'border-neutral-300 bg-white text-neutral-800 hover:border-black'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {(product.sizes && product.sizes.length > 0 ? product.sizes : ['Free Size']).map((size) => {
+                  const isSelected = selectedSize === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setSelectedSize(size)}
+                      className={`py-3 px-2 rounded-xl border font-mono font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        isSelected
+                          ? 'border-black bg-black text-white shadow-md scale-[1.02]'
+                          : 'border-neutral-200 bg-white text-neutral-800 hover:border-black hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span>{size}</span>
+                      {isSelected && <span className="text-[10px] text-[#CCFF00]">✓</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -393,14 +413,19 @@ export default function NikeStyledProductDetailPage() {
       {/* MOBILE STICKY BOTTOM PURCHASE BAR */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 p-3 flex items-center justify-between gap-3 shadow-2xl">
         <div>
-          <h4 className="text-xs font-bold text-black line-clamp-1">{product.name}</h4>
+          <div className="flex items-center gap-1.5">
+            <h4 className="text-xs font-bold text-black line-clamp-1">{product.name}</h4>
+            <span className="px-1.5 py-0.5 rounded bg-black text-white text-[9px] font-mono font-bold shrink-0">
+              {selectedSize}
+            </span>
+          </div>
           <span className="text-sm font-bold font-mono text-black">₹{product.price.toLocaleString()}</span>
         </div>
         <button
           onClick={() => addToCart(product, selectedSize)}
-          className="px-5 py-2.5 rounded-full bg-black text-white font-mono font-extrabold text-xs uppercase tracking-wider shadow-lg shrink-0 cursor-pointer hover:bg-neutral-800"
+          className="px-5 py-2.5 rounded-full bg-black text-white font-mono font-extrabold text-xs uppercase tracking-wider shadow-lg shrink-0 cursor-pointer hover:bg-neutral-800 flex items-center gap-1.5"
         >
-          Add to Bag
+          <ShoppingBag className="w-3.5 h-3.5 text-[#CCFF00]" /> Add to Bag
         </button>
       </div>
 

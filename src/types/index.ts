@@ -74,7 +74,7 @@ export interface Product {
   discountPercent: number; // e.g. 89% or 90%
   conditionScore: number; // e.g. 9.7 or 9.8 out of 10
   conditionGrade: ProductCondition;
-  sizes: ('S' | 'M' | 'L' | 'XL' | 'XXL' | 'Oversized')[];
+  sizes: ('S' | 'M' | 'L' | 'XL' | 'XXL' | 'Oversized' | string)[];
   colors: string[];
   material: string;
   weight?: string; // e.g. 650g
