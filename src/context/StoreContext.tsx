@@ -32,6 +32,9 @@ interface StoreContextType {
   catalogError: string | null;
 
   // Authentication & Admin Actions
+  customerUser: { email: string; name?: string; phone?: string; addresses?: string[] } | null;
+  customerLogin: (email: string, name?: string) => void;
+  customerLogout: () => void;
   adminLogin: (email: string, pass: string) => Promise<boolean>;
   adminLogout: () => void;
   updateSiteSettings: (settings: SiteSettings) => Promise<void>;
@@ -199,6 +202,15 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>('Customer');
+  const [customerUser, setCustomerUser] = useState<{ email: string; name?: string; phone?: string; addresses?: string[] } | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem('nenoflex_customer_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -550,14 +562,43 @@ function deduplicateProducts(items: Product[]): Product[] {
   const toggleWishlist = (productId: string) => {
     setWishlist(prev => {
       const exists = prev.includes(productId);
-      if (exists) {
-        showToast('Removed from Wishlist');
-        return prev.filter(id => id !== productId);
-      } else {
-        showToast('Added to Wishlist ❤️');
-        return [...prev, productId];
+      const updated = exists ? prev.filter(id => id !== productId) : Array.from(new Set([...prev, productId]));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nenoflex_wishlist', JSON.stringify(updated));
       }
+      showToast(exists ? 'Removed from Wishlist' : 'Added to Wishlist ❤️');
+      return updated;
     });
+  };
+
+  const customerLogin = (email: string, name?: string) => {
+    const user = {
+      email,
+      name: name || email.split('@')[0],
+      phone: '',
+      addresses: [],
+    };
+    setCustomerUser(user);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nenoflex_customer_user', JSON.stringify(user));
+    }
+    // Merge guest wishlist with user wishlist (Union of unique product IDs)
+    setWishlist(prev => {
+      const merged = Array.from(new Set([...prev]));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nenoflex_wishlist', JSON.stringify(merged));
+      }
+      return merged;
+    });
+    showToast(`Signed in as ${user.name}`);
+  };
+
+  const customerLogout = () => {
+    setCustomerUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('nenoflex_customer_user');
+    }
+    showToast('Signed out from account');
   };
 
   const addToCart = (product: Product, size: string, quantity: number = 1) => {
@@ -837,6 +878,9 @@ function deduplicateProducts(items: Product[]): Product[] {
       siteSettings,
       isAdmin,
       userRole,
+      customerUser,
+      customerLogin,
+      customerLogout,
       auditLogs,
       adminToken,
       isLoadingCatalog,

@@ -8,7 +8,7 @@ import { useStore } from '@/context/StoreContext';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { adminLogin, showToast } = useStore();
+  const { adminLogin, customerLogin, showToast } = useStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +31,7 @@ export default function LoginPage() {
     }
 
     // Normal customer login
-    showToast(`Welcome back, ${email.split('@')[0]}!`);
+    customerLogin(email.trim());
     router.push('/dashboard');
   };
 

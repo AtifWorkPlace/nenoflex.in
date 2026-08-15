@@ -7,53 +7,92 @@ import {
   Package,
   Heart,
   User,
-  Truck,
-  ShieldCheck,
   Tag,
-  Sparkles,
   MapPin,
-  Clock,
-  CheckCircle2,
-  ChevronRight,
-  ExternalLink
+  LogIn,
+  LogOut,
+  ArrowRight,
+  ShoppingBag
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 
 function CustomerDashboardContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'orders';
+  const initialTab = searchParams.get('tab') || 'wishlist';
 
-  const { orders, wishlist, products } = useStore();
+  const { orders, wishlist, products, customerUser, customerLogout } = useStore();
   const [activeTab, setActiveTab] = useState<string>(initialTab);
 
+  // Derived unique wishlist items from master catalog
   const wishlistedProducts = products.filter(p => wishlist.includes(p.id));
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#0D0D0D] py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 font-sans">
       {/* User Header Profile Card */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-neutral-900 via-neutral-950 to-neutral-900 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl">
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-neutral-900 via-neutral-950 to-neutral-900 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl">
         <div className="flex items-center gap-4 text-center sm:text-left">
-          <div className="w-16 h-16 rounded-full bg-white text-black font-bold text-2xl flex items-center justify-center font-mono">
-            AT
+          <div className="w-16 h-16 rounded-full bg-neutral-800 border border-white/10 text-white font-bold text-xl flex items-center justify-center font-mono shrink-0">
+            {customerUser ? (
+              customerUser.name?.slice(0, 2).toUpperCase() || customerUser.email.slice(0, 2).toUpperCase()
+            ) : (
+              <User className="w-7 h-7 text-neutral-400" />
+            )}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Alex Turner</h1>
-            <p className="text-xs text-neutral-400 font-mono">alex@nenoflex.com • VIP Vault Member</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">
-                Neno Flex Coins: 450 PTS
-              </span>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">
+              {customerUser ? customerUser.name || customerUser.email.split('@')[0] : 'Guest Vault Shopper'}
+            </h1>
+            <p className="text-xs text-neutral-400 font-mono">
+              {customerUser ? customerUser.email : "You're currently shopping as a guest"}
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              {customerUser ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">
+                  Verified Member
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-white/10 text-[10px] font-mono font-bold">
+                  Guest Shopper
+                </span>
+              )}
             </div>
           </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          {customerUser ? (
+            <button
+              onClick={customerLogout}
+              className="px-5 py-2.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-mono font-bold transition-all flex items-center gap-2 border border-white/10 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Sign Out
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login"
+                className="px-5 py-2.5 rounded-full bg-white text-black text-xs font-mono font-bold hover:bg-neutral-200 transition-all flex items-center gap-1.5 shadow-lg"
+              >
+                <LogIn className="w-3.5 h-3.5" /> Sign In / Register
+              </Link>
+              <Link
+                href="/shop"
+                className="px-4 py-2.5 rounded-full bg-neutral-900 border border-white/10 text-white text-xs font-mono font-bold hover:bg-neutral-800 transition-all"
+              >
+                Shop Drops
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs Bar */}
       <div className="flex border-b border-white/10 overflow-x-auto">
         {[
-          { id: 'orders', label: 'My Orders & Live Track', icon: Package },
-          { id: 'wishlist', label: `Wishlist (${wishlistedProducts.length})`, icon: Heart },
+          { id: 'wishlist', label: `My Wishlist (${wishlistedProducts.length})`, icon: Heart },
+          { id: 'orders', label: `My Orders (${orders.length})`, icon: Package },
           { id: 'coupons', label: 'Coupon Wallet', icon: Tag },
           { id: 'addresses', label: 'Saved Addresses', icon: MapPin },
         ].map(tab => {
@@ -63,7 +102,7 @@ function CustomerDashboardContent() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-3 text-xs font-mono font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
+              className={`px-6 py-3 text-xs font-mono font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                 active
                   ? 'border-white text-white'
                   : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -76,14 +115,59 @@ function CustomerDashboardContent() {
         })}
       </div>
 
+      {/* TAB CONTENT: WISHLIST */}
+      {activeTab === 'wishlist' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-mono uppercase font-bold text-white tracking-wider">
+              Saved Vault Grails ({wishlistedProducts.length})
+            </h2>
+            {wishlistedProducts.length > 0 && (
+              <Link href="/shop" className="text-xs text-[#CCFF00] hover:underline font-mono">
+                Continue Shopping &rarr;
+              </Link>
+            )}
+          </div>
+
+          {wishlistedProducts.length === 0 ? (
+            <div className="p-12 rounded-3xl bg-[#171717]/40 border border-white/10 text-center space-y-4">
+              <Heart className="w-10 h-10 text-neutral-600 mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">Your Wishlist is Empty</h3>
+                <p className="text-neutral-400 text-xs">Save your favorite vintage jackets, jerseys, and hoodies to review later.</p>
+              </div>
+              <Link
+                href="/shop"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-bold font-mono text-xs uppercase hover:bg-neutral-200 transition-all shadow-lg"
+              >
+                <ShoppingBag className="w-4 h-4" /> Explore Vault Drops
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {wishlistedProducts.map(p => (
+                <ProductCard key={p.id} product={p} theme="dark" />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* TAB CONTENT: ORDERS */}
       {activeTab === 'orders' && (
         <div className="space-y-6">
           {orders.length === 0 ? (
-            <div className="p-12 rounded-3xl bg-[#171717]/40 border border-white/10 text-center space-y-3">
-              <p className="text-neutral-400 text-sm">No active or past orders found.</p>
-              <Link href="/shop" className="inline-block px-6 py-2.5 rounded-xl bg-white text-black font-semibold text-xs">
-                Explore Vault Drops
+            <div className="p-12 rounded-3xl bg-[#171717]/40 border border-white/10 text-center space-y-4">
+              <Package className="w-10 h-10 text-neutral-600 mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">No Active or Past Orders</h3>
+                <p className="text-neutral-400 text-xs">Orders you place with express dispatch will appear here with live tracking.</p>
+              </div>
+              <Link
+                href="/shop"
+                className="inline-block px-6 py-2.5 rounded-full bg-white text-black font-bold font-mono text-xs uppercase hover:bg-neutral-200 transition-all"
+              >
+                Start Shopping <ArrowRight className="w-3.5 h-3.5 inline ml-1" />
               </Link>
             </div>
           ) : (
@@ -104,14 +188,13 @@ function CustomerDashboardContent() {
                   </div>
                 </div>
 
-                {/* Live Delivery Timeline Tracker */}
+                {/* Visual Progress Steps */}
                 <div className="p-4 rounded-2xl bg-black/50 border border-white/10 space-y-3">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-neutral-400">Courier: <strong className="text-white">{order.courier}</strong></span>
-                    <span className="text-emerald-400 font-bold">Tracking Code: {order.trackingCode}</span>
+                    <span className="text-neutral-400">Courier: <strong className="text-white">{order.courier || 'Bluedart Express'}</strong></span>
+                    <span className="text-emerald-400 font-bold">Tracking: {order.trackingCode || 'NF-TRK-' + order.id.slice(-6)}</span>
                   </div>
 
-                  {/* Visual Progress Steps */}
                   <div className="grid grid-cols-4 gap-2 pt-2 text-center text-[10px] font-mono">
                     {['Placed', 'Authenticated', 'Shipped', 'Delivered'].map((st, idx) => {
                       const stages = ['Placed', 'Authenticated', 'Quality Checked', 'Shipped', 'Out for Delivery', 'Delivered'];
@@ -152,26 +235,6 @@ function CustomerDashboardContent() {
         </div>
       )}
 
-      {/* TAB CONTENT: WISHLIST */}
-      {activeTab === 'wishlist' && (
-        <div>
-          {wishlistedProducts.length === 0 ? (
-            <div className="p-12 rounded-3xl bg-[#171717]/40 border border-white/10 text-center space-y-3">
-              <p className="text-neutral-400 text-sm">Your wishlist is empty.</p>
-              <Link href="/shop" className="inline-block px-6 py-2.5 rounded-xl bg-white text-black font-semibold text-xs">
-                Explore Grails
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {wishlistedProducts.map(p => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* TAB CONTENT: COUPONS */}
       {activeTab === 'coupons' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -194,10 +257,13 @@ function CustomerDashboardContent() {
 
       {/* TAB CONTENT: ADDRESSES */}
       {activeTab === 'addresses' && (
-        <div className="p-6 rounded-3xl bg-[#171717] border border-white/10 space-y-3">
-          <h3 className="font-bold text-white text-sm">Default Delivery Address</h3>
-          <p className="text-xs text-neutral-300">Alex Turner • +91 98765 43210</p>
-          <p className="text-xs text-neutral-400">Penthouse 4B, HSR Layout Sector 1, Bengaluru, Karnataka - 560102</p>
+        <div className="p-8 rounded-3xl bg-[#171717] border border-white/10 space-y-4 text-center sm:text-left">
+          <h3 className="font-bold text-white text-sm">Delivery Addresses</h3>
+          <p className="text-xs text-neutral-400">
+            {customerUser
+              ? 'Addresses entered during checkout will be saved here for express 1-click re-ordering.'
+              : 'No saved addresses yet. You are shopping as a guest.'}
+          </p>
         </div>
       )}
     </div>

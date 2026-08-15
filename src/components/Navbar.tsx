@@ -44,25 +44,31 @@ export const Navbar: React.FC = () => {
             href="/shop?category=Sweatshirts"
             className="text-neutral-400 hover:text-white transition-colors"
           >
-            Sweatshirt
+            Sweatshirts
           </Link>
           <Link
             href="/shop?category=Jerseys"
             className="text-neutral-400 hover:text-white transition-colors"
           >
-            Jersey
+            Jerseys
           </Link>
           <Link
             href="/shop?category=Jackets"
             className="text-neutral-400 hover:text-white transition-colors"
           >
-            Jackets/Windcheaters
+            Jackets
           </Link>
           <Link
-            href="/shop"
+            href="/shop?category=Hoodies"
             className="text-neutral-400 hover:text-white transition-colors"
           >
-            Thrift All
+            Hoodies
+          </Link>
+          <Link
+            href="/shop?category=All"
+            className="text-neutral-400 hover:text-white transition-colors"
+          >
+            Shop All
           </Link>
         </div>
 
@@ -98,9 +104,9 @@ export const Navbar: React.FC = () => {
             title="Wishlist"
           >
             <Heart className="w-5 h-5" />
-            {wishlist.length > 0 && (
+            {Array.from(new Set(wishlist)).length > 0 && (
               <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center font-mono">
-                {wishlist.length}
+                {Array.from(new Set(wishlist)).length}
               </span>
             )}
           </Link>
@@ -120,9 +126,9 @@ export const Navbar: React.FC = () => {
 
           {/* Hidden Account Login Link */}
           <Link
-            href="/login"
+            href="/dashboard"
             className="p-2 text-neutral-300 hover:text-white transition-colors"
-            title="Account Login"
+            title="Customer Account"
           >
             <User className="w-5 h-5" />
           </Link>
@@ -143,14 +149,14 @@ export const Navbar: React.FC = () => {
             />
             <button
               type="submit"
-              className="px-6 py-3 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 uppercase"
+              className="px-6 py-3 rounded-full bg-white text-black font-bold text-xs hover:bg-neutral-200 uppercase cursor-pointer"
             >
               Search
             </button>
             <button
               type="button"
               onClick={() => setSearchOpen(false)}
-              className="p-2 text-neutral-400 hover:text-white"
+              className="p-2 text-neutral-400 hover:text-white cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -164,17 +170,20 @@ export const Navbar: React.FC = () => {
           <Link href="/" onClick={() => setMobileMenuOpen(false)} className="block text-white">
             Home
           </Link>
-          <Link href="/shop?category=Sweatshirts" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400">
-            Sweatshirt
+          <Link href="/shop?category=Sweatshirts" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
+            Sweatshirts
           </Link>
-          <Link href="/shop?category=Jerseys" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400">
-            Jersey
+          <Link href="/shop?category=Jerseys" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
+            Jerseys
           </Link>
-          <Link href="/shop?category=Jackets" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400">
-            Jackets/Windcheaters
+          <Link href="/shop?category=Jackets" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
+            Jackets
           </Link>
-          <Link href="/shop" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400">
-            Thrift All
+          <Link href="/shop?category=Hoodies" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
+            Hoodies
+          </Link>
+          <Link href="/shop?category=All" onClick={() => setMobileMenuOpen(false)} className="block text-neutral-400 hover:text-white">
+            Shop All
           </Link>
         </div>
       )}

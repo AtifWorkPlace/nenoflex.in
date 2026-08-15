@@ -110,10 +110,10 @@ export default function HomePage() {
           <section key="jerseys" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-900">
             <div className="my-8 flex items-center justify-between">
               <h2 className="luxury-title text-3xl sm:text-4xl font-serif text-white flex items-center gap-2">
-                New Drops 🔥
+                New Drops Jerseys 🔥
               </h2>
-              <Link href="/shop" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
-                Shop All Vault <ArrowRight className="w-3.5 h-3.5" />
+              <Link href="/shop?category=Jerseys" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
+                Shop Jerseys <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
@@ -159,10 +159,10 @@ export default function HomePage() {
           <section key="jackets-fleeces" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-900">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-bold uppercase font-mono tracking-wider text-white">
-                Vintage Fleeces & Vault Grails
+                Vintage Fleeces & Vault Grails (Jackets)
               </h2>
-              <Link href="/shop" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
-                Shop All <ArrowRight className="w-3.5 h-3.5" />
+              <Link href="/shop?category=Jackets" className="text-xs font-mono font-bold uppercase text-neutral-400 hover:text-white flex items-center gap-1">
+                Shop Jackets <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
