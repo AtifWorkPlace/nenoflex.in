@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Check, Filter, ShoppingBag } from 'lucide-react';
+import { Search, Check, ShoppingBag } from 'lucide-react';
 import { ProductCard } from '@/components/ProductCard';
 import { useStore } from '@/context/StoreContext';
 import { BRANDS_LIST } from '@/data/products';
@@ -174,185 +174,223 @@ function ShopContent() {
   const headerInfo = getCategoryHeader();
 
   return (
-    <div className="min-h-screen bg-white text-black py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8 font-sans">
-      {/* Category Specific Header */}
-      <div className="border-b border-neutral-200 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <span className="text-xs font-mono uppercase text-neutral-500 tracking-widest">
-            {filters.category && filters.category !== 'All' ? `Category • ${filters.category}` : 'Handpicked Vault'}
-          </span>
-          <h1 className="luxury-title text-3xl sm:text-4xl font-bold text-black mt-1">
-            {headerInfo.title}
-          </h1>
-          <p className="text-xs text-neutral-500 font-mono mt-1">
-            {headerInfo.subtitle}
+    <div className="min-h-screen bg-[#0D0D0D] text-white font-sans">
+
+      {/* ── PAGE HERO HEADER ───────────────────────────────────────────── */}
+      <div className="max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16 pt-12 pb-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-white/[0.06] pb-8">
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-neutral-500 mb-2">
+              {filters.category && filters.category !== 'All' ? `Category · ${filters.category}` : 'Handpicked Vault'}
+            </p>
+            <h1 className="luxury-title text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-none tracking-tight">
+              {headerInfo.title}
+            </h1>
+            <p className="mt-3 text-xs font-mono text-neutral-500 max-w-lg">
+              {headerInfo.subtitle}
+            </p>
+          </div>
+          <p className="text-[11px] font-mono text-neutral-600 shrink-0">
+            {sortedProducts.length} {sortedProducts.length === 1 ? 'grail' : 'grails'}
           </p>
         </div>
-        <div className="text-xs font-mono text-neutral-500">
-          Showing {sortedProducts.length} {sortedProducts.length === 1 ? 'grail' : 'grails'}
+      </div>
+
+      {/* ── CATEGORY PILLS + SORT BAR ──────────────────────────────────── */}
+      <div className="max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16 py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+          {/* Horizontal Category Pill Tabs (Alameda-style) */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
+            {(['All', ...categories] as string[]).map(cat => {
+              const isActive = (filters.category === cat) || (cat === 'All' && (!filters.category || filters.category === 'All'));
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setFilters(prev => ({ ...prev, category: cat }))}
+                  className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-white text-black'
+                      : 'bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white border border-white/10'
+                  }`}
+                >
+                  {cat === 'All' ? 'Shop All' : cat}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: Search + Sort */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Inline Search */}
+            <div className="relative hidden sm:flex items-center">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={e => {
+                  setSearchInput(e.target.value);
+                  setFilters(prev => ({ ...prev, searchQuery: e.target.value }));
+                }}
+                placeholder="Search..."
+                className="pl-8 pr-3 py-2 w-40 focus:w-56 rounded-full bg-white/5 border border-white/10 text-white text-[11px] font-mono focus:outline-none focus:border-white/30 transition-all duration-300 placeholder:text-neutral-600"
+              />
+              <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5" />
+            </div>
+
+            {/* Sort */}
+            <select
+              value={filters.sortBy}
+              onChange={e => setFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+              className="px-3 py-2 rounded-full bg-white/5 border border-white/10 text-neutral-300 text-[11px] font-mono cursor-pointer focus:outline-none hover:border-white/20 transition-all"
+            >
+              <option value="featured">Featured</option>
+              <option value="price-low">Price ↑</option>
+              <option value="price-high">Price ↓</option>
+              <option value="newest">Newest</option>
+            </select>
+
+            {/* Brand filter chip (if active) */}
+            {filters.brands.length > 0 && (
+              <button
+                onClick={() => setFilters(prev => ({ ...prev, brands: [] }))}
+                className="px-3 py-2 rounded-full bg-[#CCFF00]/10 border border-[#CCFF00]/30 text-[#CCFF00] text-[11px] font-mono cursor-pointer hover:bg-[#CCFF00]/20 transition-all flex items-center gap-1"
+              >
+                {filters.brands.length} brand{filters.brands.length > 1 ? 's' : ''} ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Search */}
+        <div className="relative flex sm:hidden items-center mt-3">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={e => {
+              setSearchInput(e.target.value);
+              setFilters(prev => ({ ...prev, searchQuery: e.target.value }));
+            }}
+            placeholder="Search grails, jerseys, jackets, brands..."
+            className="w-full pl-9 pr-4 py-2.5 rounded-full bg-white/5 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-white/30 placeholder:text-neutral-600"
+          />
+          <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-3" />
         </div>
       </div>
 
-      {/* Nike-Style Search Bar */}
-      <div className="relative flex items-center">
-        <input
-          type="text"
-          value={searchInput}
-          onChange={e => {
-            setSearchInput(e.target.value);
-            setFilters(prev => ({ ...prev, searchQuery: e.target.value }));
-          }}
-          placeholder="Search grails, jerseys, jackets, brands..."
-          className="w-full pl-11 pr-4 py-3.5 rounded-full bg-neutral-100 border border-neutral-300 text-black text-xs focus:outline-none focus:border-black font-mono"
-        />
-        <Search className="w-4 h-4 text-neutral-500 absolute left-4" />
-      </div>
+      {/* ── MAIN CONTENT AREA ──────────────────────────────────────────── */}
+      <div className="max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16 pb-20">
+        <div className="flex gap-10">
 
-      {/* Main Layout: Filters Sidebar + Grid */}
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Desktop Filter Sidebar */}
-        <aside className="hidden lg:block w-64 shrink-0 space-y-6">
-          <div className="p-6 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-              <h3 className="font-bold text-xs uppercase font-mono text-black flex items-center gap-2">
-                <Filter className="w-4 h-4" /> Filters
-              </h3>
-              <button
-                onClick={resetFilters}
-                className="text-xs text-neutral-500 hover:text-black underline font-mono cursor-pointer"
-              >
-                Reset All
-              </button>
-            </div>
-
-            {/* Category Dropdown */}
-            <div>
-              <label className="block text-xs font-mono uppercase font-bold text-neutral-600 mb-2">
-                Category
-              </label>
-              <select
-                value={filters.category || 'All'}
-                onChange={e => setFilters(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-neutral-300 text-xs text-black bg-white cursor-pointer font-mono"
-              >
-                <option value="All">All Categories (Shop All)</option>
-                {categories.map((cat, i) => (
-                  <option key={i} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Brand Multi-Select */}
-            <div>
-              <label className="block text-xs font-mono uppercase font-bold text-neutral-600 mb-2">
-                Brands ({filters.brands.length})
-              </label>
-              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                {BRANDS_LIST.map((b, i) => {
-                  const selected = filters.brands.includes(b.name as BrandName);
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => toggleBrand(b.name as BrandName)}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-mono text-left flex items-center justify-between transition-all cursor-pointer ${
-                        selected
-                          ? 'bg-black text-white font-bold'
-                          : 'bg-white text-neutral-700 hover:bg-neutral-200 border border-neutral-200'
-                      }`}
-                    >
-                      <span>{b.name}</span>
-                      {selected && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Max Price Slider */}
-            <div>
-              <div className="flex justify-between text-xs font-mono text-neutral-600 mb-1">
-                <span>Max Price</span>
-                <span className="text-black font-bold">₹{filters.maxPrice}</span>
-              </div>
-              <input
-                type="range"
-                min="200"
-                max="20000"
-                step="100"
-                value={filters.maxPrice}
-                onChange={e => setFilters(prev => ({ ...prev, maxPrice: parseInt(e.target.value) }))}
-                className="w-full accent-black cursor-pointer"
-              />
-            </div>
-          </div>
-        </aside>
-
-        {/* Product Catalog Display Area */}
-        <div className="flex-1 space-y-6">
-          {/* Top Sort and Active Filter Display */}
-          <div className="flex justify-between items-center text-xs font-mono">
-            <span className="text-neutral-500">
-              Filter: <strong className="text-black font-bold">{filters.category || 'All'}</strong>
-            </span>
-            <div className="flex items-center gap-2">
-              <span>Sort:</span>
-              <select
-                value={filters.sortBy}
-                onChange={e => setFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
-                className="px-3 py-1.5 rounded-xl border border-neutral-300 bg-white text-black font-mono cursor-pointer"
-              >
-                <option value="featured">Featured Drops</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="newest">Newest Vault Items</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Product Grid */}
-          {isLoadingCatalog && sortedProducts.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse rounded-2xl bg-neutral-100 border border-neutral-200">
-                  <div className="aspect-square bg-neutral-200 rounded-t-2xl" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-3 bg-neutral-200 rounded w-3/4" />
-                    <div className="h-3 bg-neutral-200 rounded w-1/2" />
-                    <div className="h-4 bg-neutral-200 rounded w-1/3" />
-                  </div>
+          {/* ── LEFT COLUMN: BRAND FILTER (desktop only, subtle) */}
+          <aside className="hidden xl:block w-52 shrink-0">
+            <div className="sticky top-24 space-y-6 pt-2">
+              <div>
+                <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 mb-3">Brands</p>
+                <div className="space-y-1">
+                  {BRANDS_LIST.slice(0, 12).map((b, i) => {
+                    const selected = filters.brands.includes(b.name as BrandName);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => toggleBrand(b.name as BrandName)}
+                        className={`w-full text-left px-0 py-1 text-[12px] font-mono transition-colors cursor-pointer flex items-center justify-between group ${
+                          selected ? 'text-white font-bold' : 'text-neutral-500 hover:text-white'
+                        }`}
+                      >
+                        <span>{b.name}</span>
+                        {selected && <Check className="w-3 h-3 text-[#CCFF00]" />}
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+
+              <div>
+                <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600 mb-3">Max Price</p>
+                <div className="flex justify-between text-[11px] font-mono text-neutral-500 mb-2">
+                  <span>₹0</span>
+                  <span className="text-white">₹{filters.maxPrice.toLocaleString()}</span>
+                </div>
+                <input
+                  type="range"
+                  min="200"
+                  max="20000"
+                  step="100"
+                  value={filters.maxPrice}
+                  onChange={e => setFilters(prev => ({ ...prev, maxPrice: parseInt(e.target.value) }))}
+                  className="w-full accent-[#CCFF00] cursor-pointer"
+                />
+              </div>
+
+              {(filters.brands.length > 0 || filters.searchQuery || filters.maxPrice < 20000) && (
+                <button
+                  onClick={resetFilters}
+                  className="text-[10px] font-mono text-neutral-500 hover:text-white underline cursor-pointer transition-colors"
+                >
+                  Clear All Filters
+                </button>
+              )}
             </div>
-          ) : catalogError && sortedProducts.length === 0 ? (
-            <div className="p-16 bg-neutral-50 border border-neutral-200 text-center space-y-3 rounded-2xl">
-              <p className="text-neutral-500 text-xs font-mono">Unable to load catalog. Please try again.</p>
-              <button
-                onClick={() => refreshCatalog()}
-                className="px-6 py-2 bg-black text-white font-bold text-xs uppercase rounded-full cursor-pointer"
-              >
-                Retry
-              </button>
-            </div>
-          ) : sortedProducts.length === 0 ? (
-            <div className="p-16 bg-neutral-50 border border-neutral-200 text-center space-y-3 rounded-2xl">
-              <ShoppingBag className="w-8 h-8 text-neutral-400 mx-auto" />
-              <p className="text-neutral-500 text-xs font-mono">
-                No products found in category "{filters.category}".
-              </p>
-              <button
-                onClick={resetFilters}
-                className="px-6 py-2 bg-black text-white font-bold text-xs uppercase rounded-full cursor-pointer hover:bg-neutral-800"
-              >
-                View All Products (Shop All)
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {sortedProducts.map(product => (
-                <ProductCard key={product.id} product={product} theme="light" />
-              ))}
-            </div>
-          )}
+          </aside>
+
+          {/* ── RIGHT COLUMN: PRODUCT GRID */}
+          <div className="flex-1 min-w-0">
+
+            {/* Loading skeletons */}
+            {isLoadingCatalog && sortedProducts.length === 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-7">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-square rounded-2xl bg-white/[0.04]" />
+                    <div className="mt-3 space-y-2">
+                      <div className="h-3 bg-white/[0.06] rounded w-3/4" />
+                      <div className="h-3 bg-white/[0.04] rounded w-1/2" />
+                      <div className="h-3 bg-white/[0.06] rounded w-1/3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error state */}
+            {!isLoadingCatalog && catalogError && sortedProducts.length === 0 && (
+              <div className="py-24 text-center space-y-4">
+                <p className="text-neutral-500 text-xs font-mono">Unable to load the vault. Please try again.</p>
+                <button
+                  onClick={() => refreshCatalog()}
+                  className="px-6 py-2.5 bg-white text-black font-bold text-xs uppercase rounded-full cursor-pointer hover:bg-neutral-200 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!isLoadingCatalog && !catalogError && sortedProducts.length === 0 && (
+              <div className="py-24 text-center space-y-4">
+                <ShoppingBag className="w-10 h-10 text-neutral-700 mx-auto" />
+                <div>
+                  <p className="text-white text-sm font-bold mb-1">No grails in this vault</p>
+                  <p className="text-neutral-500 text-xs font-mono">No products found for "{filters.category}".</p>
+                </div>
+                <button
+                  onClick={resetFilters}
+                  className="px-6 py-2.5 bg-white text-black font-bold text-xs uppercase rounded-full cursor-pointer hover:bg-neutral-200 transition-colors"
+                >
+                  Shop All Drops
+                </button>
+              </div>
+            )}
+
+            {/* Product Grid — Beautiful Dark Cards (same as homepage) */}
+            {!isLoadingCatalog && sortedProducts.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-7">
+                {sortedProducts.map(product => (
+                  <ProductCard key={product.id} product={product} theme="dark" />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
