@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { Order, CartItem, Product } from '@/types';
 import { SupabaseServerService } from '@/lib/supabase-server';
+import { sendNewOrderPush } from '@/lib/pushSender';
 
 function validateOrderInput(payload: any): { valid: boolean; error?: string } {
   if (!payload || typeof payload !== 'object') return { valid: false, error: 'Invalid order JSON payload' };
@@ -275,6 +276,13 @@ export async function POST(req: Request) {
       ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
       timestamp: new Date().toISOString(),
     });
+
+    // 9. Fire-and-forget admin push notification (non-blocking, never breaks order response)
+    sendNewOrderPush({
+      id: authoritativeOrder.id,
+      total: authoritativeOrder.total,
+      items: authoritativeOrder.items,
+    }).catch((e) => console.error('[OrderAPI] Push notification failed (non-fatal):', e?.message));
 
     return NextResponse.json({
       success: true,

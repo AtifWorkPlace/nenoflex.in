@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   title: 'NenoFlex | Premium Imported Thrift & Streetwear Vault',
   description: 'Flex Your Style. Handpicked imported luxury thrift clothing from Nike, Essentials, TNF, Carhartt & Levi\'s at up to 90% off showroom MSRP. 100% Authenticated & Sanitized.',
   keywords: 'NenoFlex, thrift online India, imported streetwear, vintage Nike hoodie, Carhartt jacket, Levi 501, luxury thrift, street fashion',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'NenoFlex',
+  },
   openGraph: {
     title: 'NenoFlex | Premium Imported Thrift & Streetwear',
     description: 'Flex Your Style. Handpicked luxury imported streetwear up to 90% off MSRP.',
@@ -33,6 +39,10 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className="dark scroll-smooth" suppressHydrationWarning>
+      <head>
+        <meta name="theme-color" content="#000000" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+      </head>
       <body className="bg-[#0D0D0D] text-white min-h-screen flex flex-col font-sans antialiased" suppressHydrationWarning>
         <StoreProvider initialProducts={products} initialSettings={siteSettings}>
           <NenoFlexPageTransition />

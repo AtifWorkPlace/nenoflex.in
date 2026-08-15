@@ -218,6 +218,163 @@ export default function EnterpriseAdminDashboard() {
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponDiscount, setNewCouponDiscount] = useState(10);
 
+  // ── PUSH NOTIFICATION STATE ──
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'loading'>('loading');
+  const [pushRegistered, setPushRegistered] = useState(false);
+  const [pushDeviceCount, setPushDeviceCount] = useState(0);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushTestLoading, setPushTestLoading] = useState(false);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [currentEndpoint, setCurrentEndpoint] = useState<string | null>(null);
+
+  // Register service worker and check push status on admin login
+  useEffect(() => {
+    if (!isAdmin || typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const initPush = async () => {
+      try {
+        // 1. Register service worker
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        await navigator.serviceWorker.ready;
+
+        // 2. Check current permission
+        const perm = Notification.permission;
+        setPushPermission(perm);
+
+        if (perm === 'default') {
+          // Show setup prompt if not yet decided
+          const dismissed = sessionStorage.getItem('nf_push_prompt_dismissed');
+          if (!dismissed) setShowPushPrompt(true);
+        }
+
+        if (perm === 'granted') {
+          // Check if already subscribed
+          const existing = await reg.pushManager.getSubscription();
+          if (existing) {
+            setCurrentEndpoint(existing.endpoint);
+            setPushRegistered(true);
+            // Fetch device count from server
+            const res = await fetch('/api/admin/notifications/status', {
+              headers: { 'Authorization': `Bearer ${adminToken}` },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setPushDeviceCount(data.deviceCount || 0);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Push Init]:', err);
+      } finally {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          setPushPermission(Notification.permission);
+        }
+      }
+    };
+
+    initPush();
+  }, [isAdmin, adminToken]);
+
+  const enablePushNotifications = async () => {
+    if (!adminToken) return;
+    setPushLoading(true);
+    setShowPushPrompt(false);
+    try {
+      const perm = await Notification.requestPermission();
+      setPushPermission(perm);
+      if (perm !== 'granted') {
+        showToast('Notification permission denied. Enable it in browser settings.');
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) { showToast('VAPID key not configured'); return; }
+
+      // Convert VAPID public key to Uint8Array
+      const keyBytes = Uint8Array.from(atob(vapidKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: keyBytes,
+      });
+
+      setCurrentEndpoint(subscription.endpoint);
+
+      // Register on server
+      const res = await fetch('/api/admin/notifications/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ subscription }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setPushRegistered(true);
+        setPushDeviceCount(data.deviceCount || 1);
+        showToast('🔔 Push notifications enabled!');
+      } else {
+        showToast('Failed to register device: ' + data.message);
+      }
+    } catch (err: any) {
+      showToast('Push setup error: ' + (err?.message || 'Unknown'));
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const disablePushNotifications = async () => {
+    if (!currentEndpoint || !adminToken) return;
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+
+      await fetch('/api/admin/notifications/unregister', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ endpoint: currentEndpoint }),
+      });
+
+      setPushRegistered(false);
+      setCurrentEndpoint(null);
+      setPushDeviceCount(prev => Math.max(0, prev - 1));
+      showToast('🔕 Push notifications disabled for this device.');
+    } catch (err: any) {
+      showToast('Error disabling: ' + err?.message);
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const sendTestPushNotification = async () => {
+    if (!adminToken) return;
+    setPushTestLoading(true);
+    try {
+      const res = await fetch('/api/admin/notifications/test', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${adminToken}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Test notification sent to ${data.sent} device${data.sent !== 1 ? 's' : ''}!`);
+      } else {
+        showToast('Test failed: ' + data.message);
+      }
+    } catch (err: any) {
+      showToast('Test error: ' + err?.message);
+    } finally {
+      setPushTestLoading(false);
+    }
+  };
+
   // Product Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -643,6 +800,49 @@ export default function EnterpriseAdminDashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+
+          {/* ── PUSH NOTIFICATION WIDGET ── */}
+          {typeof window !== 'undefined' && 'Notification' in window ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-neutral-900 border border-neutral-800">
+              {pushPermission === 'loading' ? (
+                <span className="text-[10px] font-mono text-neutral-500 animate-pulse">Checking...</span>
+              ) : pushPermission === 'denied' ? (
+                <span className="text-[10px] font-mono text-rose-400 flex items-center gap-1">🔕 Notifications blocked — enable in browser settings</span>
+              ) : pushRegistered ? (
+                <>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1">
+                    🔔 CONNECTED
+                    {pushDeviceCount > 0 && <span className="text-neutral-500">({pushDeviceCount} device{pushDeviceCount !== 1 ? 's' : ''})</span>}
+                  </span>
+                  <button
+                    onClick={sendTestPushNotification}
+                    disabled={pushTestLoading}
+                    className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-[10px] font-mono font-bold cursor-pointer transition-colors disabled:opacity-50"
+                    title="Send test push to all your devices"
+                  >
+                    {pushTestLoading ? '...' : 'Test'}
+                  </button>
+                  <button
+                    onClick={disablePushNotifications}
+                    disabled={pushLoading}
+                    className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-rose-500/20 text-neutral-500 hover:text-rose-400 text-[10px] font-mono cursor-pointer transition-colors"
+                    title="Disable notifications on this device"
+                  >
+                    Disable
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={enablePushNotifications}
+                  disabled={pushLoading}
+                  className="text-[10px] font-mono text-amber-400 hover:text-white font-bold cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {pushLoading ? 'Enabling...' : '🔔 Enable Notifications'}
+                </button>
+              )}
+            </div>
+          ) : null}
+
           <button
             onClick={forceLockAndSaveAllToCloud}
             disabled={isSaving}
@@ -669,6 +869,34 @@ export default function EnterpriseAdminDashboard() {
           </button>
         </div>
       </div>
+
+      {/* ── ONE-TIME PUSH SETUP PROMPT ── */}
+      {showPushPrompt && pushPermission === 'default' && (
+        <div className="p-4 rounded-2xl bg-black border border-neutral-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🔔</span>
+            <div>
+              <p className="text-white font-bold text-sm font-mono">Order Notifications</p>
+              <p className="text-neutral-400 text-xs mt-0.5">Get instant phone alerts when a customer places a new NenoFlex order.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={enablePushNotifications}
+              disabled={pushLoading}
+              className="px-5 py-2.5 rounded-full bg-[#CCFF00] text-black font-bold text-xs uppercase font-mono cursor-pointer hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {pushLoading ? 'Setting up...' : '⚡ Enable Notifications'}
+            </button>
+            <button
+              onClick={() => { setShowPushPrompt(false); sessionStorage.setItem('nf_push_prompt_dismissed', '1'); }}
+              className="px-4 py-2.5 rounded-full bg-neutral-800 text-neutral-400 font-bold text-xs uppercase font-mono cursor-pointer hover:bg-neutral-700 transition-colors"
+            >
+              Later
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Unsaved Changes Banner */}
       {isDirty && (

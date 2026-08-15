@@ -1,0 +1,40 @@
+{
+  "name": "NenoFlex Official",
+  "short_name": "NenoFlex",
+  "description": "Handpicked Tokyo & US Vault Grails. Authenticated & 100% Sanitized.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D0D0D",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-IN",
+  "categories": ["shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Shop All",
+      "url": "/shop",
+      "description": "Browse all vault drops"
+    },
+    {
+      "name": "Admin",
+      "url": "/admin",
+      "description": "NenoFlex Admin Dashboard"
+    }
+  ]
+}
