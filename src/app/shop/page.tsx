@@ -39,7 +39,13 @@ export default function ShopPage() {
     }
 
     if (filters.category && filters.category !== 'All') {
-      if (product.category.toLowerCase() !== filters.category.toLowerCase()) return false;
+      const pCat = product.category ? product.category.trim().toLowerCase() : '';
+      const fCat = filters.category.trim().toLowerCase();
+      if (fCat === 'jerseys' || fCat === 'jersey') {
+        if (!pCat.includes('jersey')) return false;
+      } else if (pCat !== fCat) {
+        return false;
+      }
     }
 
     if (filters.collection && filters.collection !== 'All') {

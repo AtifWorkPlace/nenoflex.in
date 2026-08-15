@@ -12,6 +12,8 @@ import { BRANDS_LIST } from '@/data/products';
 export default function HomePage() {
   const { products, siteSettings, isLoadingCatalog, catalogError, refreshCatalog } = useStore();
 
+  const jerseysList = products.filter(p => p.category && p.category.trim().toLowerCase().includes('jersey'));
+  const jerseysToDisplay = jerseysList.length > 0 ? jerseysList : products.slice(0, 8);
   const newDropsList = products.slice(0, 8);
   const vaultGrailsList = products.slice(0, 4);
 
@@ -142,9 +144,9 @@ export default function HomePage() {
             )}
 
             {/* Products Grid */}
-            {newDropsList.length > 0 && (
+            {jerseysToDisplay.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-                {newDropsList.map(product => (
+                {jerseysToDisplay.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>

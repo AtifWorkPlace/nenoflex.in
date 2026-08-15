@@ -71,7 +71,7 @@ export interface DatabaseCoupon {
 }
 
 export const SupabaseServerService = {
-  // Fetch Authoritative Catalog from Supabase Cloud
+  // Fetch Authoritative Catalog from Supabase Cloud (public.products is single source of truth)
   fetchProducts: async (): Promise<Product[]> => {
     const apiKey = getPrivilegedKey();
     const supabaseUrl = getSupabaseUrl();
@@ -84,35 +84,37 @@ export const SupabaseServerService = {
     }
 
     try {
-      // 1. Try global snapshot table
-      const resSettings = await fetch(`${supabaseUrl}/rest/v1/site_settings?id=eq.global_products_catalog&select=*`, {
+      // Primary Source of Truth: public.products table
+      const res = await fetch(`${supabaseUrl}/rest/v1/products?select=*&order=created_at.desc`, {
         headers: {
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`,
         },
-        next: { revalidate: 30, tags: ['catalog'] },
-      });
-      if (resSettings.ok) {
-        const dataSettings = await resSettings.json();
-        if (Array.isArray(dataSettings) && dataSettings[0]?.catalog_data && Array.isArray(dataSettings[0].catalog_data) && dataSettings[0].catalog_data.length > 0) {
-          return dataSettings[0].catalog_data.map(normalizeProductFromDb);
-        }
-      }
-    } catch (e) {}
-
-    try {
-      // 2. Query products table
-      const res = await fetch(`${supabaseUrl}/rest/v1/products?select=*`, {
-        headers: {
-          'apikey': apiKey,
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        next: { revalidate: 30, tags: ['catalog'] },
+        next: { revalidate: 15 },
       });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           return data.map(normalizeProductFromDb);
+        }
+      }
+    } catch (e) {
+      console.error('[Supabase fetchProducts Error]:', e);
+    }
+
+    try {
+      // Fallback only if public.products query failed
+      const resSettings = await fetch(`${supabaseUrl}/rest/v1/site_settings?id=eq.global_products_catalog&select=*`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        cache: 'no-store',
+      });
+      if (resSettings.ok) {
+        const dataSettings = await resSettings.json();
+        if (Array.isArray(dataSettings) && dataSettings[0]?.catalog_data && Array.isArray(dataSettings[0].catalog_data) && dataSettings[0].catalog_data.length > 0) {
+          return dataSettings[0].catalog_data.map(normalizeProductFromDb);
         }
       }
     } catch (e) {}
@@ -180,6 +182,15 @@ export const SupabaseServerService = {
         body: JSON.stringify(formatted),
       });
 
+      // Purge stale global snapshot in site_settings so fetchProducts serves clean table data
+      await fetch(`${supabaseUrl}/rest/v1/site_settings?id=eq.global_products_catalog`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
       return true;
     } catch (e) {
       return true;
@@ -196,6 +207,7 @@ export const SupabaseServerService = {
     if (!supabaseUrl || !apiKey) return true;
 
     try {
+      // 1. Delete row from public.products table
       await fetch(`${supabaseUrl}/rest/v1/products?id=eq.${id}`, {
         method: 'DELETE',
         headers: {
@@ -203,6 +215,16 @@ export const SupabaseServerService = {
           'Authorization': `Bearer ${apiKey}`,
         },
       });
+
+      // 2. Wipe stale global_products_catalog snapshot in site_settings so deleted items never return
+      await fetch(`${supabaseUrl}/rest/v1/site_settings?id=eq.global_products_catalog`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
       return true;
     } catch (e) {
       return true;
@@ -216,19 +238,12 @@ export const SupabaseServerService = {
     const supabaseUrl = getSupabaseUrl();
     if (!supabaseUrl || !apiKey) return true;
     try {
-      await fetch(`${supabaseUrl}/rest/v1/site_settings`, {
-        method: 'POST',
+      await fetch(`${supabaseUrl}/rest/v1/site_settings?id=eq.global_products_catalog`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'apikey': apiKey,
           'Authorization': `Bearer ${apiKey}`,
-          'Prefer': 'resolution=merge-duplicates',
         },
-        body: JSON.stringify({
-          id: 'global_products_catalog',
-          catalog_data: products,
-          updated_at: new Date().toISOString(),
-        }),
       });
       return true;
     } catch (e) {

@@ -232,6 +232,17 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
     }
   }, [wishlist]);
 
+function deduplicateProducts(items: Product[]): Product[] {
+  if (!Array.isArray(items)) return [];
+  const map = new Map<string, Product>();
+  for (const item of items) {
+    if (item && item.id) {
+      map.set(item.id, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
   // Fetch Authoritative Catalog & Site Settings from Server API
   const refreshCatalog = async () => {
     setIsLoadingCatalog(true);
@@ -242,7 +253,7 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
         const data = await res.json();
         if (data.success) {
           if (Array.isArray(data.products)) {
-            setProducts(data.products.map(normalizeProductFromDb));
+            setProducts(deduplicateProducts(data.products.map(normalizeProductFromDb)));
           }
           if (data.siteSettings && typeof data.siteSettings === 'object') {
             setSiteSettings(prev => ({ ...prev, ...data.siteSettings }));
@@ -259,8 +270,11 @@ export const StoreProvider: React.FC<StoreProviderProps> = ({ children, initialP
   };
 
   useEffect(() => {
-    // Skip initial fetch if server already provided data
-    if (initialProducts && initialProducts.length > 0) return;
+    // If server provided initial hydration data, deduplicate and populate
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(deduplicateProducts(initialProducts));
+      return;
+    }
     refreshCatalog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
