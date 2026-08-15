@@ -2062,18 +2062,61 @@ export default function EnterpriseAdminDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-400 mb-1 font-mono">Stock Count</label>
-                  <input
-                    type="number"
-                    value={editingProduct ? editingProduct.stockCount : newProd.stockCount}
-                    onChange={e =>
-                      editingProduct
-                        ? setEditingProduct({ ...editingProduct, stockCount: Number(e.target.value) })
-                        : setNewProd({ ...newProd, stockCount: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono font-bold"
-                    required
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-neutral-400 font-mono">Stock Count</label>
+                    {editingProduct && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await updateProductStock(editingProduct.id, 0);
+                            setEditingProduct({ ...editingProduct, stockCount: 0 });
+                          }}
+                          className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-800 hover:bg-rose-900 cursor-pointer"
+                        >
+                          Mark Out of Stock (0)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const targetStock = (editingProduct.stockCount || 0) > 0 ? editingProduct.stockCount : 5;
+                            await updateProductStock(editingProduct.id, targetStock);
+                            setEditingProduct({ ...editingProduct, stockCount: targetStock });
+                          }}
+                          className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900 cursor-pointer"
+                        >
+                          Set In Stock (5)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingProduct ? editingProduct.stockCount : newProd.stockCount}
+                      onChange={e =>
+                        editingProduct
+                          ? setEditingProduct({ ...editingProduct, stockCount: Number(e.target.value) })
+                          : setNewProd({ ...newProd, stockCount: Number(e.target.value) })
+                      }
+                      className="w-full px-3 py-2 rounded-xl bg-black border border-neutral-700 text-amber-400 font-mono font-bold"
+                      required
+                    />
+                    {editingProduct && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const val = Number(editingProduct.stockCount ?? 0);
+                          await updateProductStock(editingProduct.id, val >= 0 ? val : 0);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-mono font-bold hover:bg-amber-500 hover:text-black transition-all shrink-0 cursor-pointer"
+                        title="Update Stock Count Instantly"
+                      >
+                        Update Stock
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
