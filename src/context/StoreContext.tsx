@@ -714,7 +714,7 @@ function deduplicateProducts(items: Product[]): Product[] {
         } catch (e) {}
 
         showToast(`Order ${createdOrder.id} Verified & Created! Total: ₹${createdOrder.total} 🔔`);
-        refreshCatalog(); // Refresh stock counts in client
+        setTimeout(() => { refreshCatalog(); }, 100); // Non-blocking background stock count refresh
         return createdOrder;
       } else {
         showToast(data.message || 'Order creation failed');

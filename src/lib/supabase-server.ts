@@ -125,6 +125,39 @@ export const SupabaseServerService = {
     return loadDevSeedProducts();
   },
 
+  // Fast Targeted Fetch for Specific Product IDs (avoids loading entire 30+ product catalog during checkout)
+  fetchProductsByIds: async (ids: string[]): Promise<Product[]> => {
+    if (!ids || ids.length === 0) return [];
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) {
+      const dev = loadDevSeedProducts();
+      return dev.filter(p => ids.includes(p.id));
+    }
+
+    try {
+      const filter = ids.length === 1 ? `eq.${ids[0]}` : `in.(${ids.join(',')})`;
+      const res = await fetch(`${supabaseUrl}/rest/v1/products?id=${filter}&select=*`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map(normalizeProductFromDb);
+        }
+      }
+    } catch (e) {
+      console.error('[Supabase fetchProductsByIds Error]:', e);
+    }
+
+    const fallbackList = loadDevSeedProducts();
+    return fallbackList.filter(p => ids.includes(p.id));
+  },
+
   // Save Product to Supabase Cloud & Local Memory Buffer
   saveProduct: async (product: Product): Promise<boolean> => {
     const currentList = loadDevSeedProducts();
@@ -415,26 +448,26 @@ export const SupabaseServerService = {
       } catch (e) {}
     }
 
-    // 2. Atomic In-Memory Lock Guard (Guarantees Single-Threaded Atomic Lock for Node Server & Tests)
-    const products = await SupabaseServerService.fetchProducts();
-    const target = products.find(p => p.id === productId);
+    // 2. Direct Targeted Stock Decrement (Guarantees Single-Product Fast Path)
+    const prods = await SupabaseServerService.fetchProductsByIds([productId]);
+    const target = prods.find(p => p.id === productId);
     if (!target) return { success: false };
     if (target.stockCount < quantity) return { success: false, availableStock: target.stockCount };
 
     const newStock = target.stockCount - quantity;
     target.stockCount = newStock;
-    await SupabaseServerService.saveProduct(target);
-    return { success: true };
+    const ok = await SupabaseServerService.updateProductStock(productId, newStock);
+    return { success: ok };
   },
 
-  // Rollback Stock Decrement
+  // Rollback Stock Decrement (Fast targeted update)
   rollbackStock: async (productId: string, quantity: number): Promise<boolean> => {
     try {
-      const products = await SupabaseServerService.fetchProducts();
-      const target = products.find(p => p.id === productId);
+      const prods = await SupabaseServerService.fetchProductsByIds([productId]);
+      const target = prods.find(p => p.id === productId);
       if (target) {
-        target.stockCount = target.stockCount + quantity;
-        return await SupabaseServerService.saveProduct(target);
+        const restoredStock = target.stockCount + quantity;
+        return await SupabaseServerService.updateProductStock(productId, restoredStock);
       }
     } catch (e) {}
     return false;

@@ -59,6 +59,9 @@ export default function CheckoutPage() {
 
     setIsSubmitting(false);
     if (newOrder) {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }
       setCompletedOrder(newOrder);
     }
   };

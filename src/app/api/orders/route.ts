@@ -124,8 +124,18 @@ export async function POST(req: Request) {
 
     const { items, shippingAddress, paymentMethod, couponCode } = payload;
 
-    // 2. Fetch Authoritative Products from Supabase DB
-    const authoritativeProducts = await SupabaseServerService.fetchProducts();
+    // 2. Extract unique product IDs
+    const uniqueProductIds: string[] = Array.from(
+      new Set(items.map((item: any) => item.productId || item.product?.id).filter(Boolean))
+    );
+
+    // 3. Fast Parallel Fetch: Targeted Products + Coupon concurrently
+    const [authoritativeProducts, dbCoupon] = await Promise.all([
+      SupabaseServerService.fetchProductsByIds(uniqueProductIds),
+      couponCode && typeof couponCode === 'string'
+        ? SupabaseServerService.fetchCoupon(couponCode)
+        : Promise.resolve(null),
+    ]);
 
     let serverSubtotal = 0;
     const validatedItems: CartItem[] = [];
@@ -165,58 +175,26 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Database Coupon Validation & Limits Check
+    // 4. Database Coupon Validation & Limits Check
     let serverDiscount = 0;
-    if (couponCode && typeof couponCode === 'string') {
-      const dbCoupon = await SupabaseServerService.fetchCoupon(couponCode);
-      if (dbCoupon && dbCoupon.isActive) {
-        if (!dbCoupon.expiresAt || new Date(dbCoupon.expiresAt).getTime() > Date.now()) {
-          if (dbCoupon.usedCount < dbCoupon.usageLimit) {
-            if (serverSubtotal >= dbCoupon.minOrderValue) {
-              if (dbCoupon.discountType === 'percentage') {
-                const rawDiscount = Math.round((serverSubtotal * dbCoupon.discountValue) / 100);
-                serverDiscount = Math.min(rawDiscount, dbCoupon.maxDiscount);
-              } else {
-                serverDiscount = Math.min(dbCoupon.discountValue, dbCoupon.maxDiscount);
-              }
+    if (dbCoupon && dbCoupon.isActive) {
+      if (!dbCoupon.expiresAt || new Date(dbCoupon.expiresAt).getTime() > Date.now()) {
+        if (dbCoupon.usedCount < dbCoupon.usageLimit) {
+          if (serverSubtotal >= dbCoupon.minOrderValue) {
+            if (dbCoupon.discountType === 'percentage') {
+              const rawDiscount = Math.round((serverSubtotal * dbCoupon.discountValue) / 100);
+              serverDiscount = Math.min(rawDiscount, dbCoupon.maxDiscount);
+            } else {
+              serverDiscount = Math.min(dbCoupon.discountValue, dbCoupon.maxDiscount);
             }
           }
         }
       }
     }
 
-    // 4. Server-Side Shipping & Total Calculation
+    // 5. Server-Side Shipping & Total Calculation
     const serverShippingFee = serverSubtotal > 999 ? 0 : 80;
     const serverTotal = Math.max(0, serverSubtotal - serverDiscount + serverShippingFee);
-
-    // 5. Transactional Atomic Stock Reservation with Automatic Rollback
-    const successfulDecrements: Array<{ productId: string; quantity: number }> = [];
-    let transactionFailed = false;
-    let failureMessage = '';
-
-    for (const item of validatedItems) {
-      const res = await SupabaseServerService.decrementStockAtomic(item.product.id, item.quantity);
-      if (res.success) {
-        successfulDecrements.push({ productId: item.product.id, quantity: item.quantity });
-      } else {
-        transactionFailed = true;
-        failureMessage = `Stock reservation failed for item "${item.product.name}"`;
-        break;
-      }
-    }
-
-    // ROLLBACK EVERYTHING IF ANY ITEM FAILS
-    if (transactionFailed) {
-      console.warn('[Transaction Rollback]: Undoing stock decrements:', successfulDecrements);
-      for (const dec of successfulDecrements) {
-        await SupabaseServerService.rollbackStock(dec.productId, dec.quantity);
-      }
-
-      return NextResponse.json(
-        { success: false, message: failureMessage || 'Order transaction aborted due to stock concurrency conflict' },
-        { status: 400 }
-      );
-    }
 
     // 6. Build Authoritative Order Record (Guaranteed Unique ID & Real Courier Fields)
     const orderId = `NF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
@@ -244,29 +222,41 @@ export async function POST(req: Request) {
       estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     };
 
-    // 7. Persist to Supabase Cloud Orders
-    const saveResult = await SupabaseServerService.saveOrder(authoritativeOrder);
+    // 7. Parallel Fast Commit: Persist Order + Decrement Stock concurrently
+    const [saveResult, ...decrementResults] = await Promise.all([
+      SupabaseServerService.saveOrder(authoritativeOrder),
+      ...validatedItems.map(item =>
+        SupabaseServerService.decrementStockAtomic(item.product.id, item.quantity).then(res => ({
+          item,
+          res,
+        }))
+      ),
+    ]);
 
-    if (!saveResult.success) {
-      console.error('[Order Placement FAILED]: Supabase saveOrder returned error:', saveResult.error);
+    const failedItem = decrementResults.find(d => !d.res.success);
+    if (!saveResult.success || failedItem) {
+      console.error('[Order Fast Commit Failed]:', { saveResult, failedItem });
 
-      // ROLLBACK STOCK DECREMENTS IF DATABASE INSERT FAILED
-      for (const dec of successfulDecrements) {
-        await SupabaseServerService.rollbackStock(dec.productId, dec.quantity);
-      }
+      // Rollback any stock that was decremented
+      const successfulDecrements = decrementResults.filter(d => d.res.success);
+      await Promise.all(
+        successfulDecrements.map(d => SupabaseServerService.rollbackStock(d.item.product.id, d.item.quantity))
+      );
 
       return NextResponse.json(
         {
           success: false,
-          message: 'Order creation failed to persist in production database. Stock has been restored.',
+          message: failedItem
+            ? `Stock reservation failed for "${failedItem.item.product.name}"`
+            : 'Order creation failed to persist in production database.',
           error: saveResult.error,
         },
-        { status: 500 }
+        { status: 400 }
       );
     }
 
-    // 8. Log Security Audit Action
-    await SupabaseServerService.saveAuditLog({
+    // 9. Asynchronous Non-Blocking Background Tasks (Zero customer delay!)
+    SupabaseServerService.saveAuditLog({
       id: `audit-${Date.now()}`,
       action: 'PLACE_ORDER',
       actorEmail: authoritativeOrder.shippingAddress.email,
@@ -275,14 +265,13 @@ export async function POST(req: Request) {
       details: `New order ${orderId} created for ₹${serverTotal} (Subtotal: ₹${serverSubtotal}, Discount: ₹${serverDiscount}, Shipping: ₹${serverShippingFee})`,
       ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
       timestamp: new Date().toISOString(),
-    });
+    }).catch(e => console.error('[OrderAPI] Background audit log error:', e?.message));
 
-    // 9. Fire-and-forget admin push notification (non-blocking, never breaks order response)
     sendNewOrderPush({
       id: authoritativeOrder.id,
       total: authoritativeOrder.total,
       items: authoritativeOrder.items,
-    }).catch((e) => console.error('[OrderAPI] Push notification failed (non-fatal):', e?.message));
+    }).catch(e => console.error('[OrderAPI] Background push notification error:', e?.message));
 
     return NextResponse.json({
       success: true,
