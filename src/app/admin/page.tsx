@@ -71,6 +71,7 @@ export default function EnterpriseAdminDashboard() {
     reorderFooterQuickLinks,
     addProduct,
     updateProduct,
+    updateProductStock,
     deleteProduct,
     resetProductsToDefault,
     updateOrderStatus,
@@ -722,7 +723,7 @@ export default function EnterpriseAdminDashboard() {
                       <td className="py-3 px-4 font-mono">{p.stockCount}</td>
                       <td className="py-3 px-4">
                         <button
-                          onClick={() => updateProduct({ ...p, stockCount: p.stockCount > 0 ? 0 : 2 })}
+                          onClick={() => updateProductStock(p.id, p.stockCount > 0 ? 0 : 2)}
                           className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase cursor-pointer ${
                             p.stockCount <= 0 ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
                           }`}

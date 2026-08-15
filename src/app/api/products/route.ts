@@ -153,6 +153,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: 'Failed to update product' }, { status: 500 });
     }
 
+    if (action === 'update_stock') {
+      const targetId = payload.id || product?.id;
+      const targetStock = payload.stockCount !== undefined ? payload.stockCount : product?.stockCount;
+      if (!targetId || typeof targetId !== 'string' || typeof targetStock !== 'number' || isNaN(targetStock) || targetStock < 0) {
+        return NextResponse.json({ success: false, message: 'Invalid product ID or stockCount' }, { status: 400 });
+      }
+
+      const updated = await SupabaseServerService.updateProductStock(targetId, targetStock);
+      if (updated) {
+        await SupabaseServerService.saveAuditLog({
+          id: `audit-${Date.now()}`,
+          action: 'UPDATE_PRODUCT_STOCK',
+          actorEmail: auth.session!.email,
+          actorRole: auth.session!.role,
+          targetResource: 'Products Catalog',
+          details: `Updated stock count for product ID: ${targetId} to ${targetStock}`,
+          ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+          timestamp: new Date().toISOString(),
+        });
+        return NextResponse.json({ success: true, message: 'Stock updated successfully', id: targetId, stockCount: targetStock });
+      }
+      return NextResponse.json({ success: false, message: 'Failed to update product stock' }, { status: 500 });
+    }
+
     if (action === 'delete' && product?.id) {
       const deleted = await SupabaseServerService.deleteProduct(product.id);
       if (deleted) {
@@ -174,5 +198,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, message: 'Invalid action' }, { status: 400 });
   } catch (error) {
     return NextResponse.json({ success: false, message: 'Server error processing product mutation' }, { status: 500 });
+  }
+}
+
+// PATCH /api/products — Dedicated metadata-only partial stock update endpoint
+export async function PATCH(req: Request) {
+  const auth = ServerAuth.verifyAdminRequest(req);
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { success: false, message: auth.error || 'Unauthorized admin request' },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const payload = await req.json();
+    const { id, stockCount } = payload;
+
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json({ success: false, message: 'Valid product ID is required' }, { status: 400 });
+    }
+
+    if (typeof stockCount !== 'number' || isNaN(stockCount) || stockCount < 0) {
+      return NextResponse.json({ success: false, message: 'Stock count must be a non-negative integer' }, { status: 400 });
+    }
+
+    const updated = await SupabaseServerService.updateProductStock(id, stockCount);
+    if (updated) {
+      await SupabaseServerService.saveAuditLog({
+        id: `audit-${Date.now()}`,
+        action: 'UPDATE_PRODUCT_STOCK',
+        actorEmail: auth.session!.email,
+        actorRole: auth.session!.role,
+        targetResource: 'Products Catalog',
+        details: `Updated stock count for product ID: ${id} to ${stockCount}`,
+        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
+        timestamp: new Date().toISOString(),
+      });
+      return NextResponse.json({ success: true, message: 'Stock updated successfully', id, stockCount });
+    }
+
+    return NextResponse.json({ success: false, message: 'Failed to update product stock' }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ success: false, message: 'Server error processing stock update' }, { status: 500 });
   }
 }

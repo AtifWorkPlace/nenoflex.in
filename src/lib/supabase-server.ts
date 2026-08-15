@@ -231,6 +231,49 @@ export const SupabaseServerService = {
     }
   },
 
+  // Direct Database Partial Update: Update ONLY stock_count column
+  updateProductStock: async (id: string, stockCount: number): Promise<boolean> => {
+    const currentList = loadDevSeedProducts();
+    const item = currentList.find(p => p.id === id);
+    if (item) {
+      item.stockCount = stockCount;
+    }
+
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) return true;
+
+    try {
+      // Direct database-side partial update: UPDATE products SET stock_count = ... WHERE id = ...
+      const res = await fetch(`${supabaseUrl}/rest/v1/products?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          stock_count: stockCount,
+        }),
+      });
+
+      // Purge any stale global snapshot in site_settings
+      await fetch(`${supabaseUrl}/rest/v1/site_settings?id=eq.global_products_catalog`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      return res.ok;
+    } catch (e) {
+      console.error('[Supabase updateProductStock Error]:', e);
+      return false;
+    }
+  },
+
   // Save Full Catalog Array
   saveFullCatalog: async (products: Product[]): Promise<boolean> => {
     inMemoryDevCatalog = products;

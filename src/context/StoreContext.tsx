@@ -68,6 +68,7 @@ interface StoreContextType {
   // Admin Mutations
   addProduct: (p: Product) => Promise<void>;
   updateProduct: (p: Product) => Promise<void>;
+  updateProductStock: (id: string, stockCount: number) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   resetProductsToDefault: () => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<boolean>;
@@ -725,6 +726,30 @@ function deduplicateProducts(items: Product[]): Product[] {
     }
   };
 
+  const updateProductStock = async (id: string, newStockCount: number) => {
+    try {
+      const res = await fetch('/api/products', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({ id, stockCount: newStockCount }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, stockCount: newStockCount } : p));
+        showToast(`Stock updated to ${newStockCount} (${newStockCount <= 0 ? 'SOLD OUT' : 'IN STOCK'})`);
+      } else {
+        showToast(`Stock Update Error: ${data.message}`);
+      }
+    } catch (e) {
+      showToast('Failed to update product stock on server');
+    }
+  };
+
   const deleteProduct = async (id: string) => {
     try {
       const res = await fetch('/api/products', {
@@ -843,6 +868,7 @@ function deduplicateProducts(items: Product[]): Product[] {
       placeOrder,
       addProduct,
       updateProduct,
+      updateProductStock,
       deleteProduct,
       resetProductsToDefault,
       updateOrderStatus,
