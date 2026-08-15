@@ -2,12 +2,14 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useStore } from '@/context/StoreContext';
 import { Order } from '@/types';
 import { Mail } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const { cart, appliedCoupon, applyCoupon, placeOrder } = useStore();
+  const router = useRouter();
+  const { cart, appliedCoupon, applyCoupon, placeOrder, siteSettings } = useStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -21,7 +23,8 @@ export default function CheckoutPage() {
     phone: '',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'QR Pre-Paid' | 'UPI' | 'COD'>('QR Pre-Paid');
+  const qrEnabled = siteSettings.paymentSettings?.qrPrepaidEnabled ?? true;
+  const [paymentMethod, setPaymentMethod] = useState<'QR-PREPAID'>('QR-PREPAID');
   const [discountInput, setDiscountInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
@@ -42,6 +45,7 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!qrEnabled) return;
     setIsSubmitting(true);
 
     const newOrder = await placeOrder({
@@ -54,15 +58,13 @@ export default function CheckoutPage() {
         state: formData.state,
         pincode: formData.pincode,
       },
-      paymentMethod,
+      paymentMethod: 'QR-PREPAID',
     });
 
     setIsSubmitting(false);
     if (newOrder) {
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      }
-      setCompletedOrder(newOrder);
+      // Transition directly to NenoFlex UPI Payment Page
+      router.push(`/checkout/payment/${newOrder.id}`);
     }
   };
 
@@ -291,35 +293,42 @@ export default function CheckoutPage() {
             <h2 className="text-lg font-bold text-black">Payment</h2>
             <p className="text-xs text-neutral-500">All transactions are secure and encrypted.</p>
 
-            <div className="space-y-2">
-              {[
-                { id: 'QR Pre-Paid', label: 'Qr Pre-Paid' },
-                { id: 'UPI', label: 'Pay using 6000149918@fam (Pre-Paid)' },
-                { id: 'COD', label: 'Cash on Delivery' },
-              ].map(method => (
-                <label
-                  key={method.id}
-                  className={`p-4 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${
-                    paymentMethod === method.id ? 'border-blue-600 bg-blue-50/50 font-bold' : 'border-neutral-300 hover:border-neutral-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="payment"
-                    checked={paymentMethod === method.id}
-                    onChange={() => setPaymentMethod(method.id as any)}
-                    className="accent-blue-600"
-                  />
-                  <span className="text-xs text-black">{method.label}</span>
+            {qrEnabled ? (
+              <div className="space-y-2">
+                <label className="p-4 rounded-xl border border-black bg-neutral-50 flex items-center justify-between cursor-pointer transition-all shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="payment"
+                      checked={true}
+                      readOnly
+                      className="accent-black w-4 h-4"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-black uppercase tracking-wider block font-mono">
+                        QR-PREPAID
+                      </span>
+                      <span className="text-[11px] text-neutral-500">
+                        Pay securely using UPI
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    INSTANT UPI
+                  </span>
                 </label>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-mono">
+                ⚠️ Online UPI payments are temporarily paused by administrator. Please check back shortly.
+              </div>
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={isSubmitting || cart.length === 0}
-            className="w-full py-4 rounded-lg bg-black text-white font-bold text-sm uppercase tracking-wider hover:bg-neutral-800 transition-colors disabled:opacity-50"
+            disabled={isSubmitting || cart.length === 0 || !qrEnabled}
+            className="w-full py-4 rounded-lg bg-black text-white font-bold text-sm uppercase tracking-wider hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? 'Processing Order...' : 'Complete Order'}
           </button>

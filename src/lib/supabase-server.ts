@@ -344,7 +344,16 @@ export const SupabaseServerService = {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data[0]?.catalog_data) {
-          return data[0].catalog_data as SiteSettings;
+          const dbSettings = data[0].catalog_data as SiteSettings;
+          return {
+            ...dbSettings,
+            paymentSettings: dbSettings.paymentSettings || {
+              qrPrepaidEnabled: true,
+              upiId: '6000149918@fam',
+              payeeName: 'NenoFlex',
+              paymentTimerSeconds: 290,
+            },
+          };
         }
       }
     } catch (e) {}
@@ -503,6 +512,33 @@ export const SupabaseServerService = {
     }
   },
 
+  // Fetch Single Authoritative Order by ID (fast targeted query)
+  fetchOrderById: async (orderId: string): Promise<Order | null> => {
+    const apiKey = getPrivilegedKey();
+    const supabaseUrl = getSupabaseUrl();
+    if (!supabaseUrl || !apiKey) return null;
+
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=*`, {
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        cache: 'no-store',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return normalizeOrderFromDb(data[0]);
+        }
+      }
+    } catch (e: any) {
+      console.error('[Supabase fetchOrderById Error]:', e?.message);
+    }
+    return null;
+  },
+
   // Save Order to Supabase Cloud
   saveOrder: async (order: Order): Promise<{ success: boolean; error?: string }> => {
     const apiKey = getPrivilegedKey();
@@ -525,7 +561,10 @@ export const SupabaseServerService = {
         status: order.status,
         tracking_code: order.trackingCode || null,
         courier: order.courier || null,
-        shipping_address: order.shippingAddress,
+        shipping_address: {
+          ...order.shippingAddress,
+          ...(order.paymentDetails ? { _paymentDetails: order.paymentDetails } : {}),
+        },
         payment_method: order.paymentMethod,
         items: order.items,
         created_at: order.createdAt,

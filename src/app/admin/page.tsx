@@ -31,8 +31,11 @@ import {
   LayoutGrid,
   ShieldCheck,
   VolumeX,
-  AlertCircle
+  AlertCircle,
+  QrCode,
+  CreditCard
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useStore } from '@/context/StoreContext';
 import { Product, ProductCondition } from '@/types';
 import { NotificationSoundType } from '@/lib/audio';
@@ -83,11 +86,19 @@ export default function EnterpriseAdminDashboard() {
   const [loginPassword, setLoginPassword] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'font' | 'promo' | 'sound' | 'banner' | 'coupons' | 'orders' | 'audit'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'payments' | 'font' | 'promo' | 'sound' | 'banner' | 'coupons' | 'orders' | 'audit'>('products');
 
   // Form State vs Server State Separation with isDirty tracking
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Payment Settings Form State
+  const [paymentQrEnabled, setPaymentQrEnabled] = useState(siteSettings.paymentSettings?.qrPrepaidEnabled ?? true);
+  const [paymentUpiId, setPaymentUpiId] = useState(siteSettings.paymentSettings?.upiId || '6000149918@fam');
+  const [paymentPayeeName, setPaymentPayeeName] = useState(siteSettings.paymentSettings?.payeeName || 'NenoFlex');
+  const [paymentTimer, setPaymentTimer] = useState(siteSettings.paymentSettings?.paymentTimerSeconds || 290);
+  const [testQrModalOpen, setTestQrModalOpen] = useState(false);
+  const [testQrDataUrl, setTestQrDataUrl] = useState('');
 
   // Audio Context Unlocking State
   const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
@@ -432,6 +443,12 @@ export default function EnterpriseAdminDashboard() {
       setFooterInstagramUrl(siteSettings.footerInstagramUrl || 'https://instagram.com/flexnagaon');
       setFooterCopyright(siteSettings.footerCopyright || '© 2022 NenoFlex Official. All rights reserved.');
       setFontFamilyName(siteSettings.customFontFamily || 'Inter');
+      if (siteSettings.paymentSettings) {
+        setPaymentQrEnabled(siteSettings.paymentSettings.qrPrepaidEnabled ?? true);
+        setPaymentUpiId(siteSettings.paymentSettings.upiId || '6000149918@fam');
+        setPaymentPayeeName(siteSettings.paymentSettings.payeeName || 'NenoFlex');
+        setPaymentTimer(siteSettings.paymentSettings.paymentTimerSeconds || 290);
+      }
     }
   }, [siteSettings, isDirty]);
 
@@ -724,6 +741,34 @@ export default function EnterpriseAdminDashboard() {
     showToast(`Order Notification Sound set to "${selectedSound.toUpperCase()}"`);
   };
 
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    await updateSiteSettings({
+      ...siteSettings,
+      paymentSettings: {
+        qrPrepaidEnabled: paymentQrEnabled,
+        upiId: paymentUpiId.trim(),
+        payeeName: paymentPayeeName.trim(),
+        paymentTimerSeconds: Number(paymentTimer) || 290,
+      },
+    });
+    setIsDirty(false);
+    setIsSaving(false);
+    showToast(`Payment Settings Saved! QR-Prepaid: ${paymentQrEnabled ? 'ENABLED' : 'DISABLED'}`);
+  };
+
+  const handleGenerateTestQr = async () => {
+    try {
+      const testUri = `upi://pay?pa=${paymentUpiId.trim()}&pn=${encodeURIComponent(paymentPayeeName.trim())}&am=1&tn=NenoFlex%20Test%20Payment&cu=INR`;
+      const url = await QRCode.toDataURL(testUri, { width: 280, margin: 1 });
+      setTestQrDataUrl(url);
+      setTestQrModalOpen(true);
+    } catch {
+      showToast('Failed to generate test QR code');
+    }
+  };
+
   const handleCreateCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCouponCode) return;
@@ -946,13 +991,14 @@ export default function EnterpriseAdminDashboard() {
         {[
           { id: 'products', label: `1. Products Catalog (${products.length})`, icon: Package },
           { id: 'catalog', label: '2. Catalog Categories & Brands', icon: Layers },
-          { id: 'font', label: '3. Device Font Customizer', icon: Type },
-          { id: 'promo', label: '4. Promo Pop-up Banner', icon: Eye },
-          { id: 'sound', label: '5. Order Sound Chime', icon: Volume2 },
-          { id: 'banner', label: '6. Sections Layout, Poster Photos & Footer Customizer', icon: Settings },
-          { id: 'coupons', label: `7. Coupons (${coupons.length})`, icon: Tag },
-          { id: 'orders', label: `8. Orders (${orders.length})`, icon: TrendingUp },
-          { id: 'audit', label: `9. Audit Logs (${auditLogs.length})`, icon: FileText },
+          { id: 'payments', label: '3. Payment Settings (UPI & QR)', icon: CreditCard },
+          { id: 'font', label: '4. Device Font Customizer', icon: Type },
+          { id: 'promo', label: '5. Promo Pop-up Banner', icon: Eye },
+          { id: 'sound', label: '6. Order Sound Chime', icon: Volume2 },
+          { id: 'banner', label: '7. Sections Layout, Poster Photos & Footer Customizer', icon: Settings },
+          { id: 'coupons', label: `8. Coupons (${coupons.length})`, icon: Tag },
+          { id: 'orders', label: `9. Orders (${orders.length})`, icon: TrendingUp },
+          { id: 'audit', label: `10. Audit Logs (${auditLogs.length})`, icon: FileText },
         ].map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -1311,7 +1357,271 @@ export default function EnterpriseAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: TYPOGRAPHY & FONT UPLOADER */}
+      {/* TAB 3: PAYMENT SETTINGS (DYNAMIC UPI & QR-PREPAID) */}
+      {activeTab === 'payments' && (
+        <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-8 font-mono">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-800 pb-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-white uppercase">
+                  Checkout Payment Settings & UPI Engine
+                </h2>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                  paymentQrEnabled
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                }`}>
+                  {paymentQrEnabled ? '● QR-PREPAID ACTIVE' : '○ QR-PREPAID DISABLED'}
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mt-1">
+                Configure server-authoritative payment methods, dynamic UPI ID, payee details, and checkout timers.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleGenerateTestQr}
+                className="px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-white text-xs font-bold uppercase flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <QrCode className="w-4 h-4 text-[#CCFF00]" /> Test Payment QR
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSavePaymentSettings}
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl bg-[#CCFF00] hover:bg-white text-black text-xs font-bold uppercase flex items-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" /> {isSaving ? 'Saving to Cloud...' : 'Save Payment Settings'}
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSavePaymentSettings} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Column: Payment Methods Toggle (6 Cols) */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="p-6 rounded-3xl bg-neutral-900/80 border border-neutral-800 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase">Customer Payment Methods</h3>
+                    <p className="text-xs text-neutral-400 mt-0.5">Control which payment options appear on checkout.</p>
+                  </div>
+                  <CreditCard className="w-5 h-5 text-neutral-500" />
+                </div>
+
+                {/* QR-PREPAID Toggle Card */}
+                <div className="p-4 rounded-2xl bg-black border border-neutral-800 flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white uppercase">QR-PREPAID</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        paymentQrEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-neutral-800 text-neutral-500'
+                      }`}>
+                        {paymentQrEnabled ? 'ENABLED' : 'DISABLED'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-400 leading-relaxed">
+                      Allow customers to pay using the NenoFlex UPI QR payment flow (Dynamic QR + GPay, PhonePe, Paytm, FamPay).
+                    </p>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentQrEnabled(!paymentQrEnabled);
+                      setIsDirty(true);
+                    }}
+                    className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      paymentQrEnabled ? 'bg-emerald-500' : 'bg-neutral-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-black shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        paymentQrEnabled ? 'translate-x-7' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Summary notice */}
+                <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800/80 text-[11px] text-neutral-400 space-y-1">
+                  <p className="text-white font-bold">🔒 Server-Authoritative Architecture:</p>
+                  <p>
+                    When QR-PREPAID is turned off, the checkout hides the payment button and the server rejects new order placement requests with this method.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Dynamic UPI Configuration (6 Cols) */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="p-6 rounded-3xl bg-neutral-900/80 border border-neutral-800 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase">UPI Payment Parameters</h3>
+                    <p className="text-xs text-neutral-400 mt-0.5">Authoritative merchant parameters for dynamic QR & app intents.</p>
+                  </div>
+                  <QrCode className="w-5 h-5 text-neutral-500" />
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  {/* UPI ID / VPA */}
+                  <div>
+                    <label className="block text-neutral-400 text-[11px] uppercase font-bold mb-1.5">
+                      Merchant UPI ID / VPA
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentUpiId}
+                      onChange={(e) => {
+                        setPaymentUpiId(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      placeholder="e.g. 6000149918@fam"
+                      className="w-full px-4 py-3 rounded-xl bg-black border border-neutral-700 text-white font-mono text-xs focus:outline-none focus:border-[#CCFF00]"
+                      required
+                    />
+                    <span className="text-[10px] text-neutral-500 block mt-1">
+                      Default: <code className="text-neutral-400">6000149918@fam</code>. Changes take effect on all new customer sessions without redeploying.
+                    </span>
+                  </div>
+
+                  {/* Payee Name */}
+                  <div>
+                    <label className="block text-neutral-400 text-[11px] uppercase font-bold mb-1.5">
+                      Payee Display Name
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentPayeeName}
+                      onChange={(e) => {
+                        setPaymentPayeeName(e.target.value);
+                        setIsDirty(true);
+                      }}
+                      placeholder="e.g. NenoFlex"
+                      className="w-full px-4 py-3 rounded-xl bg-black border border-neutral-700 text-white font-mono text-xs focus:outline-none focus:border-[#CCFF00]"
+                      required
+                    />
+                    <span className="text-[10px] text-neutral-500 block mt-1">
+                      Shown to customer inside Google Pay / PhonePe / Paytm / FamPay app screens.
+                    </span>
+                  </div>
+
+                  {/* Payment Timer */}
+                  <div>
+                    <label className="block text-neutral-400 text-[11px] uppercase font-bold mb-1.5">
+                      Payment Session Timer (Seconds)
+                    </label>
+                    <input
+                      type="number"
+                      min="60"
+                      max="1800"
+                      value={paymentTimer}
+                      onChange={(e) => {
+                        setPaymentTimer(Number(e.target.value));
+                        setIsDirty(true);
+                      }}
+                      className="w-full px-4 py-3 rounded-xl bg-black border border-neutral-700 text-white font-mono text-xs focus:outline-none focus:border-[#CCFF00]"
+                      required
+                    />
+                    <span className="text-[10px] text-neutral-500 block mt-1">
+                      Default: <code className="text-neutral-400">290</code> seconds (04:50). Server snapshots exact expiry on order creation.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Active Snapshot Summary */}
+                <div className="p-4 rounded-2xl bg-black border border-neutral-800 space-y-2 text-xs">
+                  <h4 className="font-bold text-white uppercase text-[11px] flex items-center justify-between">
+                    <span>Active Configuration Status</span>
+                    <span className="text-[#CCFF00] text-[10px]">LIVE ON CLOUD</span>
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                    <div>
+                      <span className="text-neutral-500 block">Active UPI:</span>
+                      <strong className="text-white">{paymentUpiId || 'Not Set'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 block">QR-Prepaid:</span>
+                      <strong className={paymentQrEnabled ? 'text-emerald-400' : 'text-amber-400'}>
+                        {paymentQrEnabled ? 'ENABLED' : 'DISABLED'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 block">Payee Name:</span>
+                      <strong className="text-white">{paymentPayeeName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 block">Timer:</span>
+                      <strong className="text-white">{paymentTimer}s ({Math.floor(paymentTimer / 60)}:{(paymentTimer % 60).toString().padStart(2, '0')})</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="w-full py-3.5 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-bold uppercase text-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving Changes...' : 'Save Payment Settings'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {/* TEST QR MODAL */}
+          {testQrModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-3xl bg-neutral-950 border border-neutral-800 p-6 space-y-5 text-center relative shadow-2xl">
+                <button
+                  onClick={() => setTestQrModalOpen(false)}
+                  className="absolute top-4 right-4 p-2 rounded-full bg-neutral-900 text-neutral-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#CCFF00] bg-[#CCFF00]/10 px-2.5 py-0.5 rounded-full border border-[#CCFF00]/20">
+                    TEST PAYMENT QR
+                  </span>
+                  <h3 className="text-lg font-bold text-white uppercase mt-2">Dynamic UPI QR Preview</h3>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    This is a live test QR generated using your currently entered UPI ID: <strong className="text-white">{paymentUpiId}</strong>
+                  </p>
+                </div>
+
+                <div className="p-4 bg-white rounded-2xl inline-block mx-auto shadow-xl">
+                  {testQrDataUrl ? (
+                    <img src={testQrDataUrl} alt="Test QR Code" className="w-56 h-56 object-contain" />
+                  ) : (
+                    <div className="w-56 h-56 flex items-center justify-center text-black text-xs">Generating...</div>
+                  )}
+                </div>
+
+                <div className="space-y-1 text-xs text-neutral-400 font-mono">
+                  <p>Payee: <strong className="text-white">{paymentPayeeName}</strong></p>
+                  <p>UPI ID: <strong className="text-white">{paymentUpiId}</strong></p>
+                  <p className="text-[10px] text-neutral-500 pt-1">
+                    (Scanning this test QR initiates a ₹1 test transfer in any UPI app without creating a store order)
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setTestQrModalOpen(false)}
+                  className="w-full py-3 rounded-xl bg-white text-black font-bold uppercase text-xs hover:bg-neutral-200 transition-colors cursor-pointer"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: TYPOGRAPHY & FONT UPLOADER */}
       {activeTab === 'font' && (
         <div className="p-8 rounded-3xl bg-black border border-neutral-800 space-y-6">
           <div>
@@ -2175,18 +2485,50 @@ export default function EnterpriseAdminDashboard() {
                       <select
                         value={o.status}
                         onChange={e => updateOrderStatus(o.id, e.target.value as any)}
-                        className="px-3 py-1.5 rounded-xl bg-black border border-neutral-700 text-xs text-emerald-400 font-bold cursor-pointer focus:outline-none focus:border-emerald-500"
+                        className={`px-3 py-1.5 rounded-xl bg-black border text-xs font-bold cursor-pointer focus:outline-none ${
+                          o.status === 'Payment Submitted'
+                            ? 'border-cyan-400 text-cyan-300 animate-pulse'
+                            : o.status === 'Pending Payment'
+                            ? 'border-amber-400 text-amber-300'
+                            : 'border-neutral-700 text-emerald-400'
+                        }`}
                       >
-                        <option value="Placed">Placed</option>
                         <option value="Pending Payment">Pending Payment</option>
+                        <option value="Payment Submitted">Payment Submitted</option>
+                        <option value="Placed">Placed / Verified</option>
                         <option value="Authenticated">Authenticated</option>
                         <option value="Quality Checked">Quality Checked</option>
                         <option value="Shipped">Shipped</option>
                         <option value="Out for Delivery">Out for Delivery</option>
                         <option value="Delivered">Delivered</option>
                       </select>
+
+                      {o.status === 'Payment Submitted' && (
+                        <button
+                          type="button"
+                          onClick={() => updateOrderStatus(o.id, 'Placed')}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[11px] uppercase transition-all cursor-pointer flex items-center gap-1 shadow-lg"
+                          title="Verify customer transfer and confirm order"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Verify & Confirm
+                        </button>
+                      )}
                     </div>
                   </div>
+
+                  {/* Payment Submitted Attention Banner */}
+                  {o.status === 'Payment Submitted' && (
+                    <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/40 flex items-center justify-between text-xs text-cyan-200">
+                      <span className="flex items-center gap-2 font-bold uppercase text-[11px]">
+                        ⚡ Payment submitted by customer — Please verify bank credit
+                      </span>
+                      {o.paymentDetails?.utrNumber && (
+                        <span className="text-white bg-black/60 px-2.5 py-1 rounded-lg border border-cyan-500/30">
+                          UTR / Ref: <strong className="text-cyan-300">{o.paymentDetails.utrNumber}</strong>
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                     {/* Customer Info */}
@@ -2208,7 +2550,10 @@ export default function EnterpriseAdminDashboard() {
                     <div className="space-y-1 bg-black/40 p-3 rounded-xl border border-neutral-800/50">
                       <span className="text-[10px] uppercase text-neutral-500 font-bold block mb-1">Payment & Total</span>
                       <p className="font-bold text-emerald-400 text-sm">₹{o.total} total</p>
-                      <p className="text-neutral-400">Method: {o.paymentMethod}</p>
+                      <p className="text-neutral-400">Method: {o.paymentMethod || 'QR-PREPAID'}</p>
+                      {o.paymentDetails?.upiId && (
+                        <p className="text-neutral-400 text-[10px]">UPI VPA: {o.paymentDetails.upiId}</p>
+                      )}
                       <p className="text-neutral-500 text-[10px]">
                         Subtotal: ₹{o.subtotal} | Disc: ₹{o.discount} | Ship: ₹{o.shippingFee}
                       </p>

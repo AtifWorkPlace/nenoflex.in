@@ -44,7 +44,19 @@ function validateOrderInput(payload: any): { valid: boolean; error?: string } {
 import { ServerAuth } from '@/lib/auth';
 
 export async function GET(req: Request) {
-  // Enforce Cryptographic HMAC Admin Authentication
+  const url = new URL(req.url);
+  const singleOrderId = url.searchParams.get('id');
+
+  // If fetching a single order by ID (e.g. customer payment page lookup)
+  if (singleOrderId) {
+    const order = await SupabaseServerService.fetchOrderById(singleOrderId);
+    if (!order) {
+      return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, order });
+  }
+
+  // Otherwise enforce Cryptographic HMAC Admin Authentication for full orders list
   const auth = ServerAuth.verifyAdminRequest(req);
   if (!auth.authorized) {
     return NextResponse.json(
@@ -66,21 +78,62 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  // Enforce Cryptographic HMAC Admin Authentication
-  const auth = ServerAuth.verifyAdminRequest(req);
-  if (!auth.authorized) {
-    return NextResponse.json(
-      { success: false, message: auth.error || 'Unauthorized admin access' },
-      { status: 401 }
-    );
-  }
-
   try {
-    const { orderId, status } = await req.json();
-    if (!orderId || typeof orderId !== 'string' || !status || typeof status !== 'string') {
+    const body = await req.json();
+    const { orderId, status, utrNumber, action } = body;
+
+    if (!orderId || typeof orderId !== 'string') {
       return NextResponse.json(
-        { success: false, message: 'Invalid payload: orderId and status are required' },
+        { success: false, message: 'Invalid payload: orderId is required' },
         { status: 400 }
+      );
+    }
+
+    // Customer Payment Submission: "I HAVE PAID" action
+    if (action === 'submit_payment' || status === 'Payment Submitted') {
+      const existingOrder = await SupabaseServerService.fetchOrderById(orderId);
+      if (!existingOrder) {
+        return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+      }
+
+      // Update order status to Payment Submitted and record submittedAt & utrNumber
+      const updatedOrder: Order = {
+        ...existingOrder,
+        status: 'Payment Submitted',
+        paymentDetails: {
+          ...(existingOrder.paymentDetails || {
+            upiId: '6000149918@fam',
+            payeeName: 'NenoFlex',
+            paymentTimerSeconds: 290,
+            expiresAt: new Date(Date.now() + 290 * 1000).toISOString(),
+          }),
+          submittedAt: new Date().toISOString(),
+          utrNumber: utrNumber ? String(utrNumber).trim() : undefined,
+        },
+      };
+
+      await SupabaseServerService.saveOrder(updatedOrder);
+
+      // Notify admin in background
+      sendNewOrderPush({
+        id: updatedOrder.id,
+        total: updatedOrder.total,
+        items: updatedOrder.items,
+      }).catch(() => {});
+
+      return NextResponse.json({
+        success: true,
+        message: 'Payment submitted successfully. Awaiting Admin verification.',
+        order: updatedOrder,
+      });
+    }
+
+    // Admin Operations: Require Cryptographic HMAC Authentication
+    const auth = ServerAuth.verifyAdminRequest(req);
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { success: false, message: auth.error || 'Unauthorized admin access' },
+        { status: 401 }
       );
     }
 
@@ -92,7 +145,7 @@ export async function PATCH(req: Request) {
       );
     }
 
-    await SupabaseServerService.saveAuditLog({
+    SupabaseServerService.saveAuditLog({
       id: `audit-${Date.now()}`,
       action: 'UPDATE_ORDER_STATUS',
       actorEmail: auth.session!.email,
@@ -101,7 +154,7 @@ export async function PATCH(req: Request) {
       details: `Updated order ${orderId} status to "${status}"`,
       ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
       timestamp: new Date().toISOString(),
-    });
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, message: 'Order status updated successfully' });
   } catch (error: any) {
@@ -122,20 +175,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: val.error }, { status: 400 });
     }
 
-    const { items, shippingAddress, paymentMethod, couponCode } = payload;
+    const { items, shippingAddress, paymentMethod: rawPaymentMethod, couponCode } = payload;
+    const selectedMethod = rawPaymentMethod === 'COD' ? 'COD' : 'QR-PREPAID';
 
     // 2. Extract unique product IDs
     const uniqueProductIds: string[] = Array.from(
       new Set(items.map((item: any) => item.productId || item.product?.id).filter(Boolean))
     );
 
-    // 3. Fast Parallel Fetch: Targeted Products + Coupon concurrently
-    const [authoritativeProducts, dbCoupon] = await Promise.all([
+    // 3. Fast Parallel Fetch: Targeted Products + Coupon + Site Settings concurrently
+    const [authoritativeProducts, dbCoupon, siteSettings] = await Promise.all([
       SupabaseServerService.fetchProductsByIds(uniqueProductIds),
       couponCode && typeof couponCode === 'string'
         ? SupabaseServerService.fetchCoupon(couponCode)
         : Promise.resolve(null),
+      SupabaseServerService.fetchSettings(),
     ]);
+
+    // Validate QR-PREPAID toggle
+    if (selectedMethod === 'QR-PREPAID') {
+      const qrEnabled = siteSettings?.paymentSettings?.qrPrepaidEnabled ?? true;
+      if (!qrEnabled) {
+        return NextResponse.json(
+          { success: false, message: 'QR-PREPAID payment method is currently disabled by administrator.' },
+          { status: 400 }
+        );
+      }
+    }
 
     let serverSubtotal = 0;
     const validatedItems: CartItem[] = [];
@@ -196,6 +262,12 @@ export async function POST(req: Request) {
     const serverShippingFee = serverSubtotal > 999 ? 0 : 80;
     const serverTotal = Math.max(0, serverSubtotal - serverDiscount + serverShippingFee);
 
+    // Snapshot Payment Settings for Immutability
+    const upiId = siteSettings?.paymentSettings?.upiId || '6000149918@fam';
+    const payeeName = siteSettings?.paymentSettings?.payeeName || 'NenoFlex';
+    const timerSeconds = siteSettings?.paymentSettings?.paymentTimerSeconds || 290;
+    const expiresAt = new Date(Date.now() + timerSeconds * 1000).toISOString();
+
     // 6. Build Authoritative Order Record (Guaranteed Unique ID & Real Courier Fields)
     const orderId = `NF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const authoritativeOrder: Order = {
@@ -205,7 +277,7 @@ export async function POST(req: Request) {
       discount: serverDiscount,
       shippingFee: serverShippingFee,
       total: serverTotal,
-      status: 'Placed',
+      status: selectedMethod === 'QR-PREPAID' ? 'Pending Payment' : 'Placed',
       trackingCode: undefined, // Real courier tracking code assigned upon shipment
       courier: undefined,      // Real courier assigned upon dispatch
       shippingAddress: {
@@ -217,7 +289,13 @@ export async function POST(req: Request) {
         state: String(shippingAddress.state || 'Assam').trim(),
         pincode: String(shippingAddress.pincode || '782001').trim(),
       },
-      paymentMethod: paymentMethod || 'Prepaid',
+      paymentMethod: selectedMethod,
+      paymentDetails: {
+        upiId,
+        payeeName,
+        paymentTimerSeconds: timerSeconds,
+        expiresAt,
+      },
       createdAt: new Date().toISOString(),
       estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     };
@@ -255,14 +333,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // 9. Asynchronous Non-Blocking Background Tasks (Zero customer delay!)
+    // 8. Asynchronous Non-Blocking Background Tasks (Zero customer delay!)
     SupabaseServerService.saveAuditLog({
       id: `audit-${Date.now()}`,
       action: 'PLACE_ORDER',
       actorEmail: authoritativeOrder.shippingAddress.email,
       actorRole: 'Customer',
       targetResource: 'Order Engine',
-      details: `New order ${orderId} created for ₹${serverTotal} (Subtotal: ₹${serverSubtotal}, Discount: ₹${serverDiscount}, Shipping: ₹${serverShippingFee})`,
+      details: `New order ${orderId} created for ₹${serverTotal} (Method: ${selectedMethod}, UPI: ${upiId})`,
       ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1',
       timestamp: new Date().toISOString(),
     }).catch(e => console.error('[OrderAPI] Background audit log error:', e?.message));

@@ -70,6 +70,7 @@ export function normalizeOrderFromDb(item: any): Order {
       pincode: String(rawAddr.pincode || ''),
     },
     paymentMethod: String(item.payment_method || item.paymentMethod || 'Prepaid'),
+    paymentDetails: (item as any).payment_details || rawAddr._paymentDetails || rawAddr.paymentDetails || (item as any).paymentDetails || undefined,
     paymentId: item.payment_id || item.paymentId,
     createdAt: String(item.created_at || item.createdAt || new Date().toISOString()),
     estimatedDelivery: String(item.estimated_delivery || item.estimatedDelivery || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),

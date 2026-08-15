@@ -108,7 +108,7 @@ export interface Order {
   discount: number;
   shippingFee: number;
   total: number;
-  status: 'Pending Payment' | 'Placed' | 'Authenticated' | 'Quality Checked' | 'Shipped' | 'Out for Delivery' | 'Delivered';
+  status: 'Pending Payment' | 'Payment Submitted' | 'Placed' | 'Authenticated' | 'Quality Checked' | 'Shipped' | 'Out for Delivery' | 'Delivered';
   trackingCode?: string | null;
   courier?: string | null;
   shippingAddress: {
@@ -120,7 +120,15 @@ export interface Order {
     state: string;
     pincode: string;
   };
-  paymentMethod: 'QR Pre-Paid' | 'UPI' | 'Razorpay' | 'Stripe' | 'Card' | 'COD' | string;
+  paymentMethod: 'QR-PREPAID' | 'QR Pre-Paid' | 'UPI' | 'Razorpay' | 'Stripe' | 'Card' | 'COD' | string;
+  paymentDetails?: {
+    upiId: string;
+    payeeName: string;
+    paymentTimerSeconds: number;
+    expiresAt: string; // ISO date string
+    submittedAt?: string;
+    utrNumber?: string;
+  };
   paymentId?: string;
   createdAt: string;
   estimatedDelivery: string;
@@ -184,6 +192,14 @@ export interface SiteSettings {
   };
   // Navbar navigation links (editable from Admin)
   navLinks?: Array<{ label: string; href: string }>;
+
+  // Payment Methods & Dynamic UPI Settings (Admin Controlled)
+  paymentSettings?: {
+    qrPrepaidEnabled: boolean;
+    upiId: string;
+    payeeName: string;
+    paymentTimerSeconds: number; // default: 290
+  };
 }
 
 export interface FilterState {

@@ -75,6 +75,7 @@ interface StoreContextType {
   deleteProduct: (id: string) => Promise<void>;
   resetProductsToDefault: () => Promise<void>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<boolean>;
+  submitOrderPayment: (orderId: string, utrNumber?: string) => Promise<Order | null>;
 
   // Toast System
   toastMessage: string | null;
@@ -168,6 +169,12 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
     { label: 'Hoodies', href: '/shop?category=Hoodies' },
     { label: 'Shop All', href: '/shop?category=All' },
   ],
+  paymentSettings: {
+    qrPrepaidEnabled: true,
+    upiId: '6000149918@fam',
+    payeeName: 'NenoFlex',
+    paymentTimerSeconds: 290,
+  },
 };
 
 const getInitialCartSync = (): CartItem[] => {
@@ -866,6 +873,29 @@ function deduplicateProducts(items: Product[]): Product[] {
     }
   };
 
+  const submitOrderPayment = async (orderId: string, utrNumber?: string): Promise<Order | null> => {
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, action: 'submit_payment', status: 'Payment Submitted', utrNumber }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.order) {
+        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+        showToast('✅ Payment Submitted! Awaiting Admin Verification.');
+        return data.order;
+      } else {
+        showToast(data.message || 'Failed to submit payment status');
+        return null;
+      }
+    } catch {
+      showToast('Network error submitting payment');
+      return null;
+    }
+  };
+
   const contextValue = React.useMemo(
     () => ({
       products,
@@ -924,6 +954,7 @@ function deduplicateProducts(items: Product[]): Product[] {
       deleteProduct,
       resetProductsToDefault,
       updateOrderStatus,
+      submitOrderPayment,
       toastMessage,
       showToast,
       refreshCatalog,
