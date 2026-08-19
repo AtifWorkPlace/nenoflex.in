@@ -12,9 +12,13 @@ export interface AdminSession {
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (secret) return secret;
-  const fallback = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-  if (fallback) return fallback;
-  console.error('[AUTH CRITICAL]: Neither JWT_SECRET nor SUPABASE_SERVICE_ROLE_KEY is set. Admin authentication will fail.');
+  // In development, allow fallback to Supabase keys for convenience
+  if (process.env.NODE_ENV !== 'production') {
+    const devFallback = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    if (devFallback) return devFallback;
+  }
+  // In production, this will cause admin auth to fail securely
+  console.error('[AUTH CRITICAL]: JWT_SECRET environment variable is not set. Admin authentication will fail.');
   return '';
 }
 
